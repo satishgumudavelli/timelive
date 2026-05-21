@@ -1350,6 +1350,7 @@
                                     <path d="M10 7l5 5-5 5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
                             </button>
+                            <button type="button" id="today-week-btn" class="btn btn-secondary no-print" style="margin-left: 12px; font-size: 13px; padding: 8px 16px;" title="Go to current week">Today</button>
                         </div>
                     </div>
                     <div class="timesheet-week-status-filter no-print">
@@ -2512,12 +2513,20 @@
             el.addEventListener(type, listener);
         }
 
+        function handleTodayWeekClick() {
+            const today = new Date();
+            setCurrentWeek(today);
+            updateWeekDisplay();
+            loadTimesheetData();
+        }
+
         function setupEventListeners() {
             bindEl('auth-form', 'submit', handleAuthSubmit);
             bindEl('logout-btn', 'click', handleLogout);
             bindEl('refresh-btn', 'click', loadTimesheetData);
             bindEl('prev-week', 'click', () => navigateWeek(-1));
             bindEl('next-week', 'click', () => navigateWeek(1));
+            bindEl('today-week-btn', 'click', handleTodayWeekClick);
             bindEl('add-entry-btn', 'click', () => showEntryModal());
             bindEl('select-all-rows', 'change', (e) => {
                 document.querySelectorAll('#timesheet-body tr:not([data-timesheet-totals]) .timesheet-row-select').forEach(cb => {
