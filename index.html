@@ -787,10 +787,11 @@
             padding: 6px 8px;
             border: var(--border-w) solid var(--ink);
             border-radius: var(--radius-sm);
-            font-size: 12px;
+            font-size: 13px;
             max-width: 160px;
             background: var(--cream);
             box-shadow: var(--brutal-shadow-sm);
+            font-weight: 700;
         }
 
         .header-date-input {
@@ -1658,6 +1659,154 @@
             color: #666;
         }
 
+        .notes-label-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 4px;
+        }
+
+        .notes-label-row label {
+            margin-bottom: 0;
+        }
+
+        .notes-ai-suggestions {
+            margin-top: 8px;
+            padding: 8px 10px;
+            background: var(--cream-2);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
+        .notes-ai-suggestions-heading {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .notes-ai-suggestion-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .notes-ai-suggestion-item {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 6px;
+            padding: 6px 8px;
+            background: var(--cream);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .notes-ai-suggestion-text {
+            flex: 1 1 180px;
+            font-size: 12px;
+            line-height: 1.4;
+            color: var(--text);
+            min-width: 0;
+        }
+
+        .notes-ai-suggestion-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .ai-settings-hint {
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+            margin-bottom: 10px;
+        }
+
+        .ai-settings-hint a {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .ai-settings-section {
+            margin-bottom: 14px;
+            padding-bottom: 12px;
+            border-bottom: var(--border-w) solid var(--ink);
+        }
+
+        .ai-settings-section:last-of-type {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .ai-settings-section-title {
+            font-size: 13px;
+            font-weight: 800;
+            margin: 0 0 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .ai-settings-section-actions {
+            margin-top: 8px;
+        }
+
+        .ai-prompt-textarea {
+            width: 100%;
+            min-height: 52px;
+            resize: vertical;
+            font-family: inherit;
+            font-size: 12px;
+            line-height: 1.45;
+            padding: 8px 10px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            color: var(--text);
+            box-sizing: border-box;
+        }
+
+        #ai-prompt-template.ai-prompt-textarea {
+            min-height: 160px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11px;
+        }
+
+        .ai-prompt-placeholders {
+            font-size: 11px;
+            margin: 0 0 8px;
+        }
+
+        .ai-prompt-placeholders code {
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            background: var(--surface-2, rgba(0, 0, 0, 0.06));
+        }
+
+        [data-theme="classic"] .notes-ai-suggestions {
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="classic"] .notes-ai-suggestion-item {
+            border: 1px solid var(--border);
+        }
+
+        [data-theme="classic"] .ai-settings-section {
+            border-bottom-color: var(--border);
+        }
+
         .status-badge {
             padding: 4px 10px;
             border-radius: var(--radius-sm);
@@ -2116,6 +2265,7 @@
                     </span>
                     <span id="username-display-text" class="username-display-text"></span>
                 </span>
+                <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                 </button>
@@ -2347,12 +2497,108 @@
                         <small style="color: #666; font-size: 12px;">Format: HH:MM (e.g., 01:30 for 1 hour 30 minutes)</small>
                     </div>
                     <div class="form-group">
-                        <label for="notes">Notes</label>
-                        <textarea id="notes" name="notes" rows="3"></textarea>
+                        <div class="notes-label-row">
+                            <label for="notes">Notes</label>
+                            <button type="button" id="notes-ai-suggest-btn" class="btn btn-secondary btn-small" title="Get AI suggestions (set provider in AI Keys)">✨ Suggest</button>
+                        </div>
+                        <textarea id="notes" name="notes" rows="3" placeholder="Briefly describe what you worked on…"></textarea>
+                        <div id="notes-ai-suggestions" class="notes-ai-suggestions hidden" aria-live="polite">
+                            <div class="notes-ai-suggestions-heading">AI suggestions — pick one to apply</div>
+                            <ul id="notes-ai-suggestion-list" class="notes-ai-suggestion-list"></ul>
+                        </div>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="cancel-btn">Cancel</button>
                         <button type="button" class="btn btn-delete" id="delete-entry-btn" style="display: none;">Delete</button>
+                        <button type="submit" class="btn btn-primary">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- AI provider keys (stored encrypted in this browser) -->
+        <div id="ai-settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ai-settings-modal-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="ai-settings-modal-title">AI note suggestions</h3>
+                    <button type="button" class="modal-close" id="close-ai-settings-modal" aria-label="Close">&times;</button>
+                </div>
+                <p class="ai-settings-hint">
+                    Keys are saved encrypted in this browser only. Choose which provider powers ✨ Suggest in the Add Entry form.
+                </p>
+                <form id="ai-settings-form">
+                    <div class="form-group">
+                        <label for="ai-provider">Provider for suggestions</label>
+                        <select id="ai-provider" name="ai-provider">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="anthropic">Anthropic Claude</option>
+                            <option value="openrouter">OpenRouter</option>
+                        </select>
+                    </div>
+                    <div class="ai-settings-section">
+                        <p class="ai-settings-section-title">Role &amp; prompt</p>
+                        <p class="ai-settings-hint ai-prompt-placeholders">
+                            Placeholders:
+                            <code>{{client}}</code>
+                            <code>{{project}}</code>
+                            <code>{{task}}</code>
+                            <code>{{date}}</code>
+                            <code>{{hours}}</code>
+                            <code>{{draft}}</code>
+                        </p>
+                        <div class="form-group">
+                            <label for="ai-role">Role (system instruction)</label>
+                            <textarea id="ai-role" class="ai-prompt-textarea" name="ai-role" rows="2" spellcheck="true"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="ai-prompt-template">User prompt template</label>
+                            <textarea id="ai-prompt-template" class="ai-prompt-textarea" name="ai-prompt-template" rows="10" spellcheck="true"></textarea>
+                        </div>
+                        <div class="ai-settings-section-actions">
+                            <button type="button" class="btn btn-secondary btn-small" id="reset-ai-prompt-btn">Reset to default</button>
+                        </div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <p class="ai-settings-section-title">Google Gemini</p>
+                        <p class="ai-settings-hint">
+                            <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio API key</a> (starts with AIza…)
+                        </p>
+                        <div class="form-group">
+                            <label for="gemini-api-key">Gemini API key</label>
+                            <input type="password" id="gemini-api-key" name="gemini-api-key" autocomplete="off" placeholder="AIza…">
+                        </div>
+                        <div class="ai-settings-section-actions">
+                            <button type="button" class="btn btn-secondary btn-small" id="clear-gemini-api-key-btn">Remove Gemini key</button>
+                        </div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <p class="ai-settings-section-title">Anthropic Claude</p>
+                        <p class="ai-settings-hint">
+                            <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">Anthropic API key</a> (starts with sk-ant-…)
+                        </p>
+                        <div class="form-group">
+                            <label for="anthropic-api-key">Anthropic API key</label>
+                            <input type="password" id="anthropic-api-key" name="anthropic-api-key" autocomplete="off" placeholder="sk-ant-…">
+                        </div>
+                        <div class="ai-settings-section-actions">
+                            <button type="button" class="btn btn-secondary btn-small" id="clear-anthropic-api-key-btn">Remove Anthropic key</button>
+                        </div>
+                    </div>
+                    <div class="ai-settings-section">
+                        <p class="ai-settings-section-title">OpenRouter</p>
+                        <p class="ai-settings-hint">
+                            <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">OpenRouter API key</a> (starts with sk-or-…). Routes through many models on one key.
+                        </p>
+                        <div class="form-group">
+                            <label for="openrouter-api-key">OpenRouter API key</label>
+                            <input type="password" id="openrouter-api-key" name="openrouter-api-key" autocomplete="off" placeholder="sk-or-…">
+                        </div>
+                        <div class="ai-settings-section-actions">
+                            <button type="button" class="btn btn-secondary btn-small" id="clear-openrouter-api-key-btn">Remove OpenRouter key</button>
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-ai-settings-btn">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
@@ -3399,6 +3645,18 @@
             bindEl('close-support-modal', 'click', hideSupportModal);
             bindEl('cancel-support-btn', 'click', hideSupportModal);
             bindEl('support-message-form', 'submit', handleSupportFormSubmit);
+            bindEl('ai-settings-btn', 'click', showAiSettingsModal);
+            bindEl('close-ai-settings-modal', 'click', hideAiSettingsModal);
+            bindEl('cancel-ai-settings-btn', 'click', hideAiSettingsModal);
+            bindEl('clear-gemini-api-key-btn', 'click', handleClearGeminiApiKey);
+            bindEl('clear-anthropic-api-key-btn', 'click', handleClearAnthropicApiKey);
+            bindEl('clear-openrouter-api-key-btn', 'click', handleClearOpenRouterApiKey);
+            bindEl('reset-ai-prompt-btn', 'click', handleResetAiPromptClick);
+            bindEl('ai-settings-form', 'submit', handleAiSettingsSubmit);
+            bindEl('notes-ai-suggest-btn', 'click', handleNotesAiSuggestClick);
+            bindEl('ai-settings-modal', 'click', (e) => {
+                if (e.target.id === 'ai-settings-modal') hideAiSettingsModal();
+            });
             bindEl('cancel-btn', 'click', hideEntryModal);
             bindEl('cancel-csv-btn', 'click', hideCSVImportModal);
             bindEl('delete-entry-btn', 'click', handleDeleteFromForm);
@@ -3461,11 +3719,14 @@
                 if (e.key !== 'Escape') return;
                 const cm = document.getElementById('csv-import-modal');
                 const em = document.getElementById('entry-modal');
+                const aim = document.getElementById('ai-settings-modal');
                 const sm = document.getElementById('support-modal');
                 if (cm && !cm.classList.contains('hidden')) {
                     hideCSVImportModal();
                 } else if (em && !em.classList.contains('hidden')) {
                     hideEntryModal();
+                } else if (aim && !aim.classList.contains('hidden')) {
+                    hideAiSettingsModal();
                 } else if (sm && !sm.classList.contains('hidden')) {
                     hideSupportModal();
                 }
@@ -3659,6 +3920,726 @@
 
         function loadCredentials(credentials) {
             api = new TimeLiveAPI(credentials.domain, credentials.username, credentials.password);
+        }
+
+        // AI note suggestions — Gemini, Anthropic & OpenRouter (keys encrypted in localStorage)
+        const GEMINI_API_KEY_STORAGE = 'timelive_gemini_api_key';
+        const ANTHROPIC_API_KEY_STORAGE = 'timelive_anthropic_api_key';
+        const OPENROUTER_API_KEY_STORAGE = 'timelive_openrouter_api_key';
+        const AI_PROVIDER_STORAGE = 'timelive_ai_provider';
+        const AI_PROMPT_SETTINGS_STORAGE = 'timelive_ai_prompt_settings';
+        const DEFAULT_AI_ROLE = 'You help write professional timesheet work descriptions.';
+        const DEFAULT_AI_PROMPT_TEMPLATE = `Context:
+- Client: {{client}}
+- Project: {{project}}
+- Task: {{task}}
+- Date: {{date}}
+- Time: {{hours}}
+
+User draft notes:
+{{draft}}
+
+Return exactly 3 improved timesheet note lines suitable for a time tracking system.
+Each line must be one clear sentence, max 220 characters, past tense, no bullet characters.
+Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
+        const GEMINI_MODELS = [
+            'gemini-2.5-flash-lite',
+            'gemini-2.5-flash',
+            'gemini-2.0-flash-001'
+        ];
+        const ANTHROPIC_MODELS = [
+            'claude-sonnet-4-20250514',
+            'claude-3-5-haiku-20241022',
+            'claude-3-haiku-20240307'
+        ];
+        const ANTHROPIC_API_VERSION = '2023-06-01';
+        const OPENROUTER_MODELS = [
+            'openrouter/free', 
+            'deepseek/deepseek-v4-flash:free',
+            'meta-llama/llama-3.2-3b-instruct:free',
+            'qwen/qwen3-32b:free',
+            'google/gemma-4-27b:free'
+        ];
+
+        async function storeEncryptedApiKey(storageKey, apiKey) {
+            const trimmed = String(apiKey || '').trim();
+            if (!trimmed) {
+                localStorage.removeItem(storageKey);
+                return;
+            }
+            const keyEnc = await encryptPassword(trimmed);
+            localStorage.setItem(storageKey, JSON.stringify({ keyEnc, v: 1 }));
+        }
+
+        async function getStoredEncryptedApiKey(storageKey, label) {
+            const stored = localStorage.getItem(storageKey);
+            if (!stored) return '';
+            let parsed;
+            try {
+                parsed = JSON.parse(stored);
+            } catch (e) {
+                return '';
+            }
+            if (parsed && parsed.keyEnc) {
+                try {
+                    return await decryptPassword(parsed.keyEnc);
+                } catch (e) {
+                    console.warn(`TimeLive: could not decrypt ${label} API key.`, e);
+                    localStorage.removeItem(storageKey);
+                    return '';
+                }
+            }
+            if (parsed && parsed.key) {
+                await storeEncryptedApiKey(storageKey, parsed.key);
+                return parsed.key;
+            }
+            return '';
+        }
+
+        async function storeGeminiApiKey(apiKey) {
+            return storeEncryptedApiKey(GEMINI_API_KEY_STORAGE, apiKey);
+        }
+
+        async function getStoredGeminiApiKey() {
+            return getStoredEncryptedApiKey(GEMINI_API_KEY_STORAGE, 'Gemini');
+        }
+
+        async function storeAnthropicApiKey(apiKey) {
+            return storeEncryptedApiKey(ANTHROPIC_API_KEY_STORAGE, apiKey);
+        }
+
+        async function getStoredAnthropicApiKey() {
+            return getStoredEncryptedApiKey(ANTHROPIC_API_KEY_STORAGE, 'Anthropic');
+        }
+
+        async function storeOpenRouterApiKey(apiKey) {
+            return storeEncryptedApiKey(OPENROUTER_API_KEY_STORAGE, apiKey);
+        }
+
+        async function getStoredOpenRouterApiKey() {
+            return getStoredEncryptedApiKey(OPENROUTER_API_KEY_STORAGE, 'OpenRouter');
+        }
+
+        function getAiProvider() {
+            const v = localStorage.getItem(AI_PROVIDER_STORAGE);
+            if (v === 'anthropic' || v === 'openrouter') return v;
+            return 'gemini';
+        }
+
+        function setAiProvider(provider) {
+            const allowed = ['gemini', 'anthropic', 'openrouter'];
+            localStorage.setItem(AI_PROVIDER_STORAGE, allowed.includes(provider) ? provider : 'gemini');
+        }
+
+        function getAiProviderLabel(provider) {
+            const labels = {
+                gemini: 'Google Gemini',
+                anthropic: 'Anthropic Claude',
+                openrouter: 'OpenRouter'
+            };
+            return labels[provider] || labels.gemini;
+        }
+
+        function getAiProviderShortLabel(provider) {
+            const labels = {
+                gemini: 'Gemini',
+                anthropic: 'Claude',
+                openrouter: 'OpenRouter'
+            };
+            return labels[provider] || labels.gemini;
+        }
+
+        async function getStoredApiKeyForProvider(provider) {
+            if (provider === 'anthropic') return getStoredAnthropicApiKey();
+            if (provider === 'openrouter') return getStoredOpenRouterApiKey();
+            return getStoredGeminiApiKey();
+        }
+
+        function getDefaultAiPromptSettings() {
+            return {
+                role: DEFAULT_AI_ROLE,
+                promptTemplate: DEFAULT_AI_PROMPT_TEMPLATE
+            };
+        }
+
+        function getAiPromptSettings() {
+            const defaults = getDefaultAiPromptSettings();
+            const stored = localStorage.getItem(AI_PROMPT_SETTINGS_STORAGE);
+            if (!stored) return { ...defaults };
+            try {
+                const parsed = JSON.parse(stored);
+                return {
+                    role: String(parsed.role || '').trim() || defaults.role,
+                    promptTemplate: String(parsed.promptTemplate || '').trim() || defaults.promptTemplate
+                };
+            } catch (e) {
+                return { ...defaults };
+            }
+        }
+
+        function saveAiPromptSettings(role, promptTemplate) {
+            const roleTrimmed = String(role || '').trim();
+            const promptTrimmed = String(promptTemplate || '').trim();
+            if (!roleTrimmed || !promptTrimmed) {
+                throw new Error('Role and prompt template cannot be empty.');
+            }
+            localStorage.setItem(AI_PROMPT_SETTINGS_STORAGE, JSON.stringify({
+                role: roleTrimmed,
+                promptTemplate: promptTrimmed,
+                v: 1
+            }));
+        }
+
+        function clearAiPromptSettings() {
+            localStorage.removeItem(AI_PROMPT_SETTINGS_STORAGE);
+        }
+
+        function fillAiPromptFields(settings) {
+            const roleEl = document.getElementById('ai-role');
+            const promptEl = document.getElementById('ai-prompt-template');
+            const s = settings || getAiPromptSettings();
+            if (roleEl) roleEl.value = s.role;
+            if (promptEl) promptEl.value = s.promptTemplate;
+        }
+
+        function readAiPromptFieldsFromForm() {
+            const roleEl = document.getElementById('ai-role');
+            const promptEl = document.getElementById('ai-prompt-template');
+            return {
+                role: roleEl ? roleEl.value.trim() : '',
+                promptTemplate: promptEl ? promptEl.value.trim() : ''
+            };
+        }
+
+        function applyAiPromptTemplate(template, draftText) {
+            const ctx = getEntryNotesContext();
+            const vars = {
+                client: ctx.client || '(not set)',
+                project: ctx.project || '(not set)',
+                task: ctx.task || '(not set)',
+                date: ctx.date || '(not set)',
+                hours: ctx.hours || '(not set)',
+                draft: draftText
+            };
+            return String(template || '').replace(/\{\{(\w+)\}\}/g, (match, key) => {
+                return Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : match;
+            });
+        }
+
+        function buildNotesAiRequest(draftText) {
+            const settings = getAiPromptSettings();
+            return {
+                role: settings.role,
+                userPrompt: applyAiPromptTemplate(settings.promptTemplate, draftText)
+            };
+        }
+
+        function getSelectDisplayText(selectId) {
+            const sel = document.getElementById(selectId);
+            if (!sel || sel.selectedIndex < 0) return '';
+            const opt = sel.options[sel.selectedIndex];
+            if (!opt || !opt.value) return '';
+            return opt.textContent.trim();
+        }
+
+        function getEntryNotesContext() {
+            return {
+                client: getSelectDisplayText('client'),
+                project: getSelectDisplayText('project'),
+                task: getSelectDisplayText('task'),
+                date: document.getElementById('entry-date')?.value || '',
+                hours: document.getElementById('hours')?.value || ''
+            };
+        }
+
+        function clearNotesAiSuggestions() {
+            const panel = document.getElementById('notes-ai-suggestions');
+            const list = document.getElementById('notes-ai-suggestion-list');
+            if (list) list.innerHTML = '';
+            if (panel) panel.classList.add('hidden');
+        }
+
+        function parseSuggestionsFromModelText(text) {
+            const raw = String(text || '').trim();
+            if (!raw) return [];
+            const jsonMatch = raw.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                try {
+                    const arr = JSON.parse(jsonMatch[0]);
+                    if (Array.isArray(arr)) {
+                        return arr.map((s) => String(s).trim()).filter(Boolean).slice(0, 5);
+                    }
+                } catch (e) { /* fall through */ }
+            }
+            return raw
+                .split(/\n+/)
+                .map((line) => line.replace(/^[\d\.\)\-\*•]\s*/, '').trim())
+                .filter((line) => line.length > 2)
+                .slice(0, 5);
+        }
+
+        function isGeminiModelUnavailableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            return status === 404
+                || m.includes('not found')
+                || m.includes('not supported for generatecontent');
+        }
+
+        function isGeminiNonRetryableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            if (status === 401 || status === 403) return true;
+            return m.includes('api key')
+                || m.includes('permission')
+                || m.includes('billing')
+                || m.includes('quota')
+                || m.includes('rate limit');
+        }
+
+        async function callGeminiGenerateText(role, userPrompt, apiKey) {
+            let lastError = null;
+            const apiVersions = ['v1beta', 'v1'];
+            const requestBody = {
+                contents: [{ parts: [{ text: userPrompt }] }],
+                generationConfig: {
+                    temperature: 0.65,
+                    maxOutputTokens: 600
+                }
+            };
+            if (role) {
+                requestBody.systemInstruction = { parts: [{ text: role }] };
+            }
+            for (const apiVersion of apiVersions) {
+                for (const model of GEMINI_MODELS) {
+                    const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+                    try {
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody)
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                            const msg = data.error?.message || res.statusText || `HTTP ${res.status}`;
+                            const err = new Error(msg);
+                            err.status = res.status;
+                            throw err;
+                        }
+                        const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
+                        if (!text.trim()) {
+                            throw new Error('Empty response from Gemini');
+                        }
+                        return text;
+                    } catch (e) {
+                        lastError = e;
+                        const msg = e.message || String(e);
+                        const status = e.status;
+                        if (isGeminiNonRetryableError(msg, status)) {
+                            throw e;
+                        }
+                        if (!isGeminiModelUnavailableError(msg, status)) {
+                            throw e;
+                        }
+                    }
+                }
+            }
+            throw lastError || new Error('Gemini request failed — no supported model available for your API key.');
+        }
+
+        function isAnthropicModelUnavailableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            return status === 404
+                || m.includes('not found')
+                || m.includes('invalid model');
+        }
+
+        function isAnthropicNonRetryableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            if (status === 401 || status === 403) return true;
+            return m.includes('api key')
+                || m.includes('authentication')
+                || m.includes('permission')
+                || m.includes('billing')
+                || m.includes('credit')
+                || m.includes('quota')
+                || m.includes('rate limit')
+                || m.includes('cors requests are not allowed');
+        }
+
+        async function callAnthropicGenerateText(role, userPrompt, apiKey) {
+            let lastError = null;
+            for (const model of ANTHROPIC_MODELS) {
+                try {
+                    const body = {
+                        model,
+                        max_tokens: 600,
+                        temperature: 0.65,
+                        messages: [{ role: 'user', content: userPrompt }]
+                    };
+                    if (role) body.system = role;
+                    const res = await fetch('https://api.anthropic.com/v1/messages', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-api-key': apiKey,
+                            'anthropic-version': ANTHROPIC_API_VERSION,
+                            'anthropic-dangerous-direct-browser-access': 'true'
+                        },
+                        body: JSON.stringify(body)
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        const msg = data.error?.message || res.statusText || `HTTP ${res.status}`;
+                        const err = new Error(msg);
+                        err.status = res.status;
+                        throw err;
+                    }
+                    const text = (data.content || [])
+                        .filter((block) => block.type === 'text')
+                        .map((block) => block.text || '')
+                        .join('');
+                    if (!text.trim()) {
+                        throw new Error('Empty response from Anthropic');
+                    }
+                    return text;
+                } catch (e) {
+                    lastError = e;
+                    const msg = e.message || String(e);
+                    const status = e.status;
+                    if (msg === 'Failed to fetch') {
+                        throw new Error('Could not reach Anthropic (network or CORS). Check your connection and API key.');
+                    }
+                    if (isAnthropicNonRetryableError(msg, status)) {
+                        throw e;
+                    }
+                    if (!isAnthropicModelUnavailableError(msg, status)) {
+                        throw e;
+                    }
+                }
+            }
+            throw lastError || new Error('Anthropic request failed — no supported model available for your API key.');
+        }
+
+        function isOpenRouterModelUnavailableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            return status === 404
+                || m.includes('not found')
+                || m.includes('no endpoints found')
+                || m.includes('invalid model')
+                || m.includes('does not exist');
+        }
+
+        function isOpenRouterNonRetryableError(message, status) {
+            const m = String(message || '').toLowerCase();
+            if (status === 401 || status === 403) return true;
+            return m.includes('api key')
+                || m.includes('authentication')
+                || m.includes('permission')
+                || m.includes('billing')
+                || m.includes('credit')
+                || m.includes('quota')
+                || m.includes('rate limit')
+                || m.includes('insufficient');
+        }
+
+        function getOpenRouterErrorMessage(data, fallback) {
+            if (data.error) {
+                if (typeof data.error === 'string') return data.error;
+                if (data.error.message) return data.error.message;
+            }
+            return fallback;
+        }
+
+        async function callOpenRouterGenerateText(role, userPrompt, apiKey) {
+            let lastError = null;
+            const referer = (typeof location !== 'undefined' && location.origin)
+                ? location.origin
+                : 'https://timelive.local';
+            const messages = [];
+            if (role) messages.push({ role: 'system', content: role });
+            messages.push({ role: 'user', content: userPrompt });
+            for (const model of OPENROUTER_MODELS) {
+                try {
+                    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`,
+                            'HTTP-Referer': referer,
+                            'X-Title': 'TimeLive Timesheet'
+                        },
+                        body: JSON.stringify({
+                            model,
+                            messages,
+                            temperature: 0.65,
+                            max_tokens: 600
+                        })
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok) {
+                        const msg = getOpenRouterErrorMessage(data, res.statusText || `HTTP ${res.status}`);
+                        const err = new Error(msg);
+                        err.status = res.status;
+                        throw err;
+                    }
+                    const text = data.choices?.[0]?.message?.content || '';
+                    if (!text.trim()) {
+                        throw new Error('Empty response from OpenRouter');
+                    }
+                    return text;
+                } catch (e) {
+                    lastError = e;
+                    const msg = e.message || String(e);
+                    const status = e.status;
+                    if (msg === 'Failed to fetch') {
+                        throw new Error('Could not reach OpenRouter (network or CORS). Check your connection and API key.');
+                    }
+                    if (isOpenRouterNonRetryableError(msg, status)) {
+                        throw e;
+                    }
+                    if (!isOpenRouterModelUnavailableError(msg, status)) {
+                        throw e;
+                    }
+                }
+            }
+            throw lastError || new Error('OpenRouter request failed — no supported model available for your API key.');
+        }
+
+        async function fetchNotesAiSuggestions(draftText) {
+            const provider = getAiProvider();
+            const { role, userPrompt } = buildNotesAiRequest(draftText);
+            const apiKey = await getStoredApiKeyForProvider(provider);
+            if (!apiKey) {
+                throw new Error(`Add your ${getAiProviderLabel(provider)} API key first (header → AI Keys).`);
+            }
+
+            let responseText;
+            if (provider === 'anthropic') {
+                responseText = await callAnthropicGenerateText(role, userPrompt, apiKey);
+            } else if (provider === 'openrouter') {
+                responseText = await callOpenRouterGenerateText(role, userPrompt, apiKey);
+            } else {
+                responseText = await callGeminiGenerateText(role, userPrompt, apiKey);
+            }
+
+            const suggestions = parseSuggestionsFromModelText(responseText);
+            if (!suggestions.length) {
+                throw new Error('Could not parse suggestions from AI response.');
+            }
+            return suggestions;
+        }
+
+        function renderNotesAiSuggestions(suggestions) {
+            const panel = document.getElementById('notes-ai-suggestions');
+            const list = document.getElementById('notes-ai-suggestion-list');
+            if (!panel || !list) return;
+
+            list.innerHTML = '';
+            suggestions.forEach((text, index) => {
+                const li = document.createElement('li');
+                li.className = 'notes-ai-suggestion-item';
+
+                const span = document.createElement('span');
+                span.className = 'notes-ai-suggestion-text';
+                span.textContent = text;
+
+                const actions = document.createElement('div');
+                actions.className = 'notes-ai-suggestion-actions';
+
+                const applyBtn = document.createElement('button');
+                applyBtn.type = 'button';
+                applyBtn.className = 'btn btn-primary btn-small';
+                applyBtn.textContent = 'Apply';
+                applyBtn.addEventListener('click', () => applyNotesSuggestion(text));
+
+                const appendBtn = document.createElement('button');
+                appendBtn.type = 'button';
+                appendBtn.className = 'btn btn-secondary btn-small';
+                appendBtn.textContent = 'Append';
+                appendBtn.addEventListener('click', () => appendNotesSuggestion(text));
+
+                actions.appendChild(applyBtn);
+                actions.appendChild(appendBtn);
+                li.appendChild(span);
+                li.appendChild(actions);
+                list.appendChild(li);
+            });
+
+            panel.classList.remove('hidden');
+        }
+
+        function applyNotesSuggestion(text) {
+            const notes = document.getElementById('notes');
+            if (notes) {
+                notes.value = text;
+                notes.focus();
+            }
+            clearNotesAiSuggestions();
+            showToast('Note updated from AI suggestion.', 'success');
+        }
+
+        function appendNotesSuggestion(text) {
+            const notes = document.getElementById('notes');
+            if (!notes) return;
+            const current = notes.value.trim();
+            notes.value = current ? `${current}\n${text}` : text;
+            notes.focus();
+            clearNotesAiSuggestions();
+            showToast('Suggestion appended to notes.', 'success');
+        }
+
+        async function handleNotesAiSuggestClick() {
+            const notes = document.getElementById('notes');
+            const draft = notes ? notes.value.trim() : '';
+            if (!draft) {
+                showToast('Type a few words in Notes first, then click Suggest.', 'info');
+                notes?.focus();
+                return;
+            }
+
+            const btn = document.getElementById('notes-ai-suggest-btn');
+            if (btn) btn.disabled = true;
+            clearNotesAiSuggestions();
+            const providerLabel = getAiProviderShortLabel(getAiProvider());
+            pushAppBusy(`Getting ${providerLabel} suggestions…`);
+
+            try {
+                const suggestions = await fetchNotesAiSuggestions(draft);
+                renderNotesAiSuggestions(suggestions);
+                showToast('Pick a suggestion to apply or append.', 'success', 4000);
+            } catch (e) {
+                const msg = e.message || String(e);
+                if (/API key/i.test(msg) || /AI Keys/i.test(msg)) {
+                    showToast(msg, 'error', 7000);
+                    showAiSettingsModal();
+                } else {
+                    showToast('AI suggestion failed: ' + msg, 'error', 8000);
+                }
+            } finally {
+                popAppBusy();
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function showAiSettingsModal() {
+            const modal = document.getElementById('ai-settings-modal');
+            const providerSel = document.getElementById('ai-provider');
+            const geminiInput = document.getElementById('gemini-api-key');
+            const anthropicInput = document.getElementById('anthropic-api-key');
+            const openrouterInput = document.getElementById('openrouter-api-key');
+
+            const [geminiKey, anthropicKey, openrouterKey] = await Promise.all([
+                getStoredGeminiApiKey(),
+                getStoredAnthropicApiKey(),
+                getStoredOpenRouterApiKey()
+            ]);
+
+            if (providerSel) {
+                providerSel.value = getAiProvider();
+            }
+            if (geminiInput) {
+                geminiInput.value = '';
+                geminiInput.placeholder = geminiKey ? 'Saved — enter new key to replace' : 'AIza…';
+            }
+            if (anthropicInput) {
+                anthropicInput.value = '';
+                anthropicInput.placeholder = anthropicKey ? 'Saved — enter new key to replace' : 'sk-ant-…';
+            }
+            if (openrouterInput) {
+                openrouterInput.value = '';
+                openrouterInput.placeholder = openrouterKey ? 'Saved — enter new key to replace' : 'sk-or-…';
+            }
+            fillAiPromptFields(getAiPromptSettings());
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function handleResetAiPromptClick() {
+            clearAiPromptSettings();
+            fillAiPromptFields(getDefaultAiPromptSettings());
+            showToast('Role and prompt reset to defaults.', 'info');
+        }
+
+        function hideAiSettingsModal() {
+            const modal = document.getElementById('ai-settings-modal');
+            const geminiInput = document.getElementById('gemini-api-key');
+            const anthropicInput = document.getElementById('anthropic-api-key');
+            const openrouterInput = document.getElementById('openrouter-api-key');
+            if (modal) modal.classList.add('hidden');
+            if (geminiInput) geminiInput.value = '';
+            if (anthropicInput) anthropicInput.value = '';
+            if (openrouterInput) openrouterInput.value = '';
+        }
+
+        async function handleAiSettingsSubmit(e) {
+            e.preventDefault();
+            const providerSel = document.getElementById('ai-provider');
+            const geminiInput = document.getElementById('gemini-api-key');
+            const anthropicInput = document.getElementById('anthropic-api-key');
+            const openrouterInput = document.getElementById('openrouter-api-key');
+            const geminiKey = geminiInput ? geminiInput.value.trim() : '';
+            const anthropicKey = anthropicInput ? anthropicInput.value.trim() : '';
+            const openrouterKey = openrouterInput ? openrouterInput.value.trim() : '';
+            const provider = providerSel ? providerSel.value : 'gemini';
+
+            const existingKey = await getStoredApiKeyForProvider(provider);
+            const newKeyForProvider = provider === 'anthropic'
+                ? anthropicKey
+                : provider === 'openrouter'
+                    ? openrouterKey
+                    : geminiKey;
+
+            if (!newKeyForProvider && !existingKey) {
+                showToast(`Add a ${getAiProviderLabel(provider)} API key or choose another provider.`, 'info');
+                return;
+            }
+
+            const { role, promptTemplate } = readAiPromptFieldsFromForm();
+            if (!role || !promptTemplate) {
+                showToast('Role and prompt template cannot be empty.', 'info');
+                return;
+            }
+
+            try {
+                setAiProvider(provider);
+                saveAiPromptSettings(role, promptTemplate);
+                if (geminiKey) await storeGeminiApiKey(geminiKey);
+                if (anthropicKey) await storeAnthropicApiKey(anthropicKey);
+                if (openrouterKey) await storeOpenRouterApiKey(openrouterKey);
+                hideAiSettingsModal();
+                const label = getAiProviderLabel(provider);
+                showToast(`AI settings saved (${label}).`, 'success');
+            } catch (err) {
+                showToast('Could not save AI settings: ' + (err.message || err), 'error');
+            }
+        }
+
+        async function handleClearGeminiApiKey() {
+            localStorage.removeItem(GEMINI_API_KEY_STORAGE);
+            const input = document.getElementById('gemini-api-key');
+            if (input) {
+                input.value = '';
+                input.placeholder = 'AIza…';
+            }
+            showToast('Gemini API key removed from this browser.', 'info');
+        }
+
+        async function handleClearAnthropicApiKey() {
+            localStorage.removeItem(ANTHROPIC_API_KEY_STORAGE);
+            const input = document.getElementById('anthropic-api-key');
+            if (input) {
+                input.value = '';
+                input.placeholder = 'sk-ant-…';
+            }
+            showToast('Anthropic API key removed from this browser.', 'info');
+        }
+
+        async function handleClearOpenRouterApiKey() {
+            localStorage.removeItem(OPENROUTER_API_KEY_STORAGE);
+            const input = document.getElementById('openrouter-api-key');
+            if (input) {
+                input.value = '';
+                input.placeholder = 'sk-or-…';
+            }
+            showToast('OpenRouter API key removed from this browser.', 'info');
         }
 
         // Session Data Storage (for projects, tasks, clientId, employeeId)
@@ -4798,6 +5779,7 @@
             const favGroup = document.getElementById('entry-favorites-group');
             if (favGroup) favGroup.style.display = '';
             populateEntryFavoritesSelect();
+            clearNotesAiSuggestions();
             
             if (entry) {
                 title.textContent = 'Edit Timesheet Entry';
@@ -4934,6 +5916,7 @@
             document.getElementById('entry-modal').classList.add('hidden');
             const fs = document.getElementById('entry-favorite-select');
             if (fs) fs.value = '';
+            clearNotesAiSuggestions();
             document.getElementById('entry-form').reset();
             // Re-enable readonly fields
             document.getElementById('client').readOnly = false;
