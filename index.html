@@ -5,8 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Huninn&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Huninn&display=swap" rel="stylesheet">
     <title>TimeLive Timesheet</title>
+    <script>
+        (function () {
+            try {
+                var theme = localStorage.getItem('timelive-ui-theme');
+                document.documentElement.setAttribute('data-theme', theme === 'classic' ? 'classic' : 'brutal');
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'brutal');
+            }
+        })();
+    </script>
     <style>
         * {
             margin: 0;
@@ -14,11 +24,84 @@
             box-sizing: border-box;
         }
 
+        :root,
+        [data-theme="brutal"] {
+            /* Neo-brutal (yellow) — default */
+            --yellow: #ffc107;
+            --yellow-deep: #ffb300;
+            --cream: #fff9e6;
+            --cream-2: #fff3cc;
+            --ink: #000000;
+            --text: #000000;
+            --muted: #333333;
+            --positive: #2e7d32;
+            --negative: #c62828;
+            --checkbox-blue: #2563eb;
+            --checkbox-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%23ffffff' d='M6.2 11.4 2.9 8.1l1.1-1.1 2.2 2.2 5.8-5.8 1.1 1.1z'/%3E%3C/svg%3E");
+
+            --border-w: 2px;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --radius-pill: 999px;
+            --brutal-shadow: 4px 4px 0 var(--ink);
+            --brutal-shadow-sm: 3px 3px 0 var(--ink);
+
+            --bg-0: var(--yellow);
+            --bg-1: var(--yellow);
+            --surface: var(--cream);
+            --surface-2: var(--cream-2);
+            --border: var(--ink);
+            --primary: var(--yellow);
+            --primary-700: var(--yellow-deep);
+            --accent: var(--yellow);
+            --accent-700: var(--yellow-deep);
+            --shadow-sm: var(--brutal-shadow-sm);
+            --shadow-md: var(--brutal-shadow);
+            --ring: 0 0 0 2px var(--ink);
+            --checkbox-unchecked: #ffffff;
+            --page-bg: var(--yellow);
+            --overlay-bg: rgba(255, 193, 7, 0.75);
+            --totals-row-bg: var(--yellow);
+            --totals-row-accent: var(--ink);
+            --cell-tooltip-bg: var(--ink);
+            --cell-tooltip-fg: var(--yellow);
+            --cell-tooltip-border: var(--ink);
+        }
+
+        [data-theme="classic"] {
+            --cream: #ffffff;
+            --cream-2: #f7fafc;
+            --ink: #0f172a;
+            --text: #0f172a;
+            --muted: #64748b;
+            --primary: #10b981;
+            --primary-700: #059669;
+            --accent: #2563eb;
+            --accent-700: #1d4ed8;
+            --border-w: 1px;
+            --border: rgba(2, 6, 23, 0.10);
+            --brutal-shadow: 0 10px 30px rgba(2, 6, 23, 0.10);
+            --brutal-shadow-sm: 0 1px 2px rgba(2, 6, 23, 0.06);
+            --ring: 0 0 0 3px rgba(16, 185, 129, 0.22);
+            --checkbox-unchecked: #ffffff;
+            --page-bg: transparent;
+            --overlay-bg: rgba(246, 248, 255, 0.78);
+            --radius: 10px;
+            --radius-sm: 6px;
+            --totals-row-bg: #e9ecef;
+            --totals-row-accent: var(--primary);
+            --cell-tooltip-bg: #333333;
+            --cell-tooltip-fg: #ffffff;
+            --cell-tooltip-border: transparent;
+        }
+
         body {
-            font-family: 'Huninn', 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: var(--text);
+            background: var(--page-bg);
             min-height: 100vh;
             padding: 12px;
+            transition: background-color 0.2s ease, color 0.2s ease;
         }
 
         button,
@@ -37,18 +120,108 @@
             display: none !important;
         }
 
+        /* Neo-brutal checkboxes (grid, templates, modals) */
+        input[type="checkbox"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            min-width: 18px;
+            min-height: 18px;
+            margin: 0;
+            flex-shrink: 0;
+            border: var(--border-w) solid var(--ink);
+            border-radius: 5px;
+            background-color: var(--checkbox-unchecked);
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: 12px 12px;
+            cursor: pointer;
+            vertical-align: middle;
+            transition: background-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+            box-shadow: 2px 2px 0 var(--ink);
+        }
+
+        input[type="checkbox"]:hover:not(:disabled) {
+            background-color: var(--cream);
+        }
+
+        input[type="checkbox"]:checked {
+            background-color: var(--checkbox-blue);
+            border-color: var(--ink);
+            background-image: var(--checkbox-check);
+        }
+
+        input[type="checkbox"]:checked:hover:not(:disabled) {
+            background-color: #1d4ed8;
+        }
+
+        input[type="checkbox"]:focus-visible {
+            outline: none;
+            box-shadow: 2px 2px 0 var(--ink), 0 0 0 2px var(--yellow);
+        }
+
+        input[type="checkbox"]:active:not(:disabled) {
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0 var(--ink);
+        }
+
+        input[type="checkbox"]:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background-color: var(--cream-2);
+            box-shadow: none;
+        }
+
+        input[type="checkbox"]:disabled:checked {
+            background-color: #94a3b8;
+            background-image: var(--checkbox-check);
+        }
+
+        .timesheet-grid .row-select-th input[type="checkbox"],
+        .timesheet-grid .row-select-cell input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            min-height: 20px;
+            background-size: 13px 13px;
+        }
+
+        .week-template-weekdays input[type="checkbox"] {
+            width: 17px;
+            height: 17px;
+            min-width: 17px;
+            min-height: 17px;
+        }
+
+        .copy-day-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            min-width: 20px;
+            min-height: 20px;
+            background-size: 14px 14px;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            min-width: 18px;
+            box-shadow: 2px 2px 0 var(--ink);
+        }
+
         /* Authentication Styles */
         .auth-card {
-            background: white;
-            border-radius: 10px;
+            background: var(--cream);
+            border-radius: var(--radius);
             padding: 28px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--brutal-shadow);
             max-width: 420px;
             margin: 48px auto;
+            border: var(--border-w) solid var(--ink);
         }
 
         .auth-card h1 {
-            color: #333;
+            color: var(--text);
             margin-bottom: 20px;
             text-align: center;
             font-size: 24px;
@@ -61,27 +234,31 @@
         .form-group label {
             display: block;
             margin-bottom: 4px;
-            color: #555;
-            font-weight: 500;
+            color: var(--muted);
+            font-weight: 600;
             font-size: 13px;
         }
 
-        .form-group input,
+        .form-group input:not([type="checkbox"]):not([type="radio"]),
         .form-group select,
         .form-group textarea {
             width: 100%;
             padding: 8px 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 13px;
-            transition: border-color 0.3s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+            background: var(--cream);
+            color: var(--text);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
-        .form-group input:focus,
+        .form-group input:not([type="checkbox"]):not([type="radio"]):focus,
         .form-group select:focus,
         .form-group textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--ink);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         .form-group textarea {
@@ -92,54 +269,66 @@
         /* Button Styles */
         .btn {
             padding: 7px 14px;
-            border: none;
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+            text-transform: none;
+            letter-spacing: 0;
+            box-shadow: var(--brutal-shadow-sm);
+            color: var(--ink);
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 var(--ink);
+        }
+
+        .btn:active:not(:disabled) {
+            transform: translate(3px, 3px);
+            box-shadow: none;
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--yellow);
+            color: var(--ink);
         }
 
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        .btn-primary:hover:not(:disabled) {
+            background: var(--yellow-deep);
         }
 
         .btn-secondary {
-            background: #6c757d;
-            color: white;
+            background: var(--cream);
+            color: var(--ink);
         }
 
-        .btn-secondary:hover {
-            background: #5a6268;
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--cream-2);
         }
 
         .btn-icon {
-            background: white;
-            color: #667eea;
+            background: var(--cream);
+            color: var(--ink);
             font-size: 20px;
             padding: 6px 12px;
             min-width: 34px;
         }
 
         .btn-icon:hover {
-            background: #f0f0f0;
+            background: var(--cream-2);
         }
 
         /* Timesheet Container */
         #timesheet-container {
             position: relative;
-            background: white;
-            border-radius: 10px;
+            background: var(--cream);
+            border-radius: var(--radius);
             padding: 16px 18px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: var(--brutal-shadow);
+            border: var(--border-w) solid var(--ink);
         }
 
         .app-busy-overlay {
@@ -152,8 +341,8 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            background: rgba(255, 255, 255, 0.82);
-            backdrop-filter: blur(2px);
+            background: var(--overlay-bg);
+            backdrop-filter: blur(1px);
         }
 
         .app-busy-overlay.hidden {
@@ -163,10 +352,10 @@
         .app-busy-inner {
             text-align: center;
             padding: 16px 24px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-            border: 1px solid #e8e8f0;
+            background: var(--cream);
+            border-radius: var(--radius);
+            box-shadow: var(--brutal-shadow);
+            border: var(--border-w) solid var(--ink);
             max-width: 90vw;
         }
 
@@ -174,8 +363,8 @@
             width: 36px;
             height: 36px;
             margin: 0 auto 10px;
-            border: 4px solid #e8e8f0;
-            border-top-color: #667eea;
+            border: 4px solid var(--cream-2);
+            border-top-color: var(--ink);
             border-radius: 50%;
             animation: app-busy-spin 0.75s linear infinite;
         }
@@ -190,7 +379,7 @@
             margin: 0;
             font-size: 13px;
             font-weight: 600;
-            color: #495057;
+            color: var(--muted);
         }
 
         .header {
@@ -201,13 +390,14 @@
             gap: 10px;
             margin-bottom: 14px;
             padding-bottom: 12px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: var(--border-w) solid var(--ink);
             min-width: 0;
         }
 
         .header h1 {
-            color: #333;
+            color: var(--text);
             font-size: 24px;
+            font-weight: 800;
             flex: 1 1 200px;
             min-width: 0;
             line-height: 1.2;
@@ -225,24 +415,112 @@
         }
 
         .username-display {
-            color: #667eea;
-            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--ink);
+            font-weight: 700;
             font-size: 12px;
-            padding: 5px 10px;
-            background: #f0f4ff;
-            border-radius: 6px;
+            padding: 4px 10px 4px 4px;
+            background: var(--cream);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-pill);
+            box-shadow: var(--brutal-shadow-sm);
             margin-right: 0;
             max-width: min(100%, 360px);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
             flex: 0 1 auto;
             min-width: 0;
         }
 
+        .username-display[hidden] {
+            display: none !important;
+        }
+
+        .username-display-icon {
+            flex-shrink: 0;
+            width: 26px;
+            height: 26px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--yellow);
+            border: var(--border-w) solid var(--ink);
+            border-radius: 50%;
+            box-shadow: 2px 2px 0 var(--ink);
+            color: var(--ink);
+        }
+
+        .username-display-icon svg {
+            width: 14px;
+            height: 14px;
+            display: block;
+        }
+
+        .username-display-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-width: 0;
+        }
+
+        .theme-toggle-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 40px;
+            padding: 6px 10px;
+        }
+
+        .theme-toggle-btn svg {
+            width: 18px;
+            height: 18px;
+            display: block;
+            flex-shrink: 0;
+        }
+
+        .theme-toggle-btn .theme-switch-to-classic,
+        .theme-toggle-btn .theme-switch-to-brutal {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        @media (max-width: 520px) {
+            .theme-toggle-btn .theme-switch-to-classic,
+            .theme-toggle-btn .theme-switch-to-brutal {
+                display: none;
+            }
+        }
+
+        .theme-toggle-btn .theme-switch-to-brutal {
+            display: none;
+        }
+
+        [data-theme="classic"] .theme-toggle-btn .theme-switch-to-classic {
+            display: none;
+        }
+
+        [data-theme="classic"] .theme-toggle-btn .theme-switch-to-brutal {
+            display: inline;
+        }
+
+        .auth-card-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .auth-card-top h1 {
+            margin-bottom: 0;
+            text-align: left;
+            flex: 1 1 auto;
+        }
+
         .btn-support {
-            background: #28a745;
-            color: white;
+            background: var(--yellow);
+            color: var(--ink);
             text-decoration: none;
             display: inline-flex;
             align-items: center;
@@ -250,9 +528,7 @@
         }
 
         .btn-support:hover {
-            background: #218838;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+            background: var(--yellow-deep);
         }
 
         .header-actions .btn-support {
@@ -267,36 +543,40 @@
         }
 
         .support-modal-banner {
-            background: #fff3cd;
-            color: #856404;
+            background: var(--cream-2);
+            color: var(--ink);
             padding: 8px 10px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             font-size: 12px;
             margin-bottom: 10px;
-            border: 1px solid #ffc107;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
-        /* Week Navigation */
+        /* Week Navigation (legacy class; bottom toolbar uses -after-entries overrides) */
         .week-navigation {
             display: flex;
             flex-direction: column;
             align-items: stretch;
             gap: 10px;
             margin-bottom: 14px;
+        }
+
+        .week-navigation:not(.week-navigation-after-entries) {
             padding: 12px 14px;
-            background: linear-gradient(145deg, #fafbff 0%, #f4f2ff 45%, #eef1ff 100%);
-            border-radius: 10px;
-            border: 1px solid rgba(102, 126, 234, 0.22);
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            background: var(--cream);
+            border-radius: var(--radius);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow);
         }
 
         .timesheet-week-status-bar {
             margin-bottom: 12px;
             padding: 10px 12px;
-            background: linear-gradient(145deg, #fafbff 0%, #f4f2ff 45%, #eef1ff 100%);
-            border-radius: 10px;
-            border: 1px solid rgba(102, 126, 234, 0.22);
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+            background: var(--cream);
+            border-radius: var(--radius);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow);
         }
 
         .timesheet-week-status-row {
@@ -328,6 +608,10 @@
             flex-shrink: 0;
         }
 
+        #today-week-btn {
+            margin-left: 10px;
+        }
+
         .timesheet-week-status-filter {
             flex: 1 1 200px;
             max-width: 100%;
@@ -342,7 +626,7 @@
         .timesheet-week-status-filter-label {
             font-size: 13px;
             font-weight: 600;
-            color: #495057;
+            color: var(--muted);
             white-space: nowrap;
         }
 
@@ -351,17 +635,18 @@
             min-width: 140px;
             max-width: 320px;
             padding: 5px 10px;
-            border: 1px solid rgba(102, 126, 234, 0.28);
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 12px;
-            background: rgba(255, 255, 255, 0.95);
-            color: #333;
+            background: var(--cream-2);
+            color: var(--text);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .timesheet-week-status-filter-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.22);
+            border-color: var(--ink);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         #timesheet-status-display {
@@ -377,8 +662,13 @@
         }
 
         .week-navigation-after-entries {
-            margin-top: 8px;
-            margin-bottom: 4px;
+            margin-top: 10px;
+            margin-bottom: 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
         }
 
         .week-toolbar-top {
@@ -386,41 +676,58 @@
             flex-wrap: wrap;
             gap: 10px;
             align-items: stretch;
-            justify-content: center;
+            justify-content: stretch;
             width: 100%;
+        }
+
+        /* Bottom toolbar: one brutal frame, two panels inside (no nested boxes) */
+        .week-navigation-after-entries .week-toolbar-top {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0;
+            background: var(--cream);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius);
+            box-shadow: var(--brutal-shadow);
+            overflow: hidden;
         }
 
         .week-toolbar-group {
             flex: 1 1 280px;
             min-width: 0;
             max-width: 100%;
-            background: #fff;
-            border-radius: 8px;
-            padding: 10px 12px;
-            border: 1px solid rgba(102, 126, 234, 0.15);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            background: var(--cream);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 8px;
         }
 
-        .week-toolbar-group-copy {
-            border-left: 4px solid #667eea;
+        .week-navigation-after-entries .week-toolbar-group {
+            flex: none;
+            max-width: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            background: var(--cream);
         }
 
-        .week-toolbar-group-templates {
-            border-left: 4px solid #764ba2;
+        .week-navigation-after-entries .week-toolbar-group-copy {
+            border-right: var(--border-w) solid var(--ink);
         }
 
         .week-toolbar-group-heading {
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 800;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: #667eea;
-            padding-bottom: 2px;
-            border-bottom: 2px solid rgba(102, 126, 234, 0.2);
-            margin: 0;
+            color: var(--ink);
+            padding-bottom: 6px;
+            margin: 0 0 2px 0;
+            border-bottom: var(--border-w) solid var(--ink);
         }
 
         .week-toolbar-group-controls {
@@ -432,25 +739,26 @@
 
         .week-copy-label {
             font-size: 13px;
-            font-weight: 600;
-            color: #495057;
+            font-weight: 700;
+            color: var(--ink);
             white-space: nowrap;
         }
 
         .week-copy-date-input {
             padding: 5px 8px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 12px;
             min-width: 130px;
-            background: #fafbfc;
-            transition: border-color 0.15s, box-shadow 0.15s;
+            background: var(--cream);
+            box-shadow: var(--brutal-shadow-sm);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
         }
 
         .week-copy-date-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            border-color: var(--ink);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         .week-template-weekdays {
@@ -458,14 +766,15 @@
             align-items: center;
             gap: 6px;
             font-size: 13px;
-            font-weight: 500;
-            color: #495057;
+            font-weight: 600;
+            color: var(--ink);
             cursor: pointer;
             user-select: none;
             padding: 4px 8px;
-            border-radius: 8px;
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
+            border-radius: var(--radius-sm);
+            background: var(--cream);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .week-template-weekdays input {
@@ -476,10 +785,12 @@
         .header-mini-select,
         .header-date-input {
             padding: 6px 8px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 12px;
             max-width: 160px;
+            background: var(--cream);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .header-date-input {
@@ -489,18 +800,19 @@
         .template-select {
             max-width: 200px;
             padding: 5px 8px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             font-size: 12px;
-            border: 1px solid #ced4da;
-            background: #fafbfc;
-            color: #333;
+            border: var(--border-w) solid var(--ink);
+            background: var(--cream);
+            color: var(--text);
             min-height: 32px;
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .template-select:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            border-color: var(--ink);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         .timesheet-warnings {
@@ -510,20 +822,21 @@
             align-items: flex-start;
             margin-bottom: 8px;
             padding: 8px 10px;
-            background: #fff8e6;
-            border: 1px solid #ffc107;
-            border-radius: 6px;
+            background: var(--cream-2);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 12px;
-            color: #856404;
+            color: var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .timesheet-warnings .warn-sev {
-            font-weight: 600;
-            color: #a94442;
+            font-weight: 700;
+            color: var(--negative);
         }
 
         .timesheet-warnings .warn-info {
-            color: #6c5ce7;
+            color: var(--ink);
         }
 
         .timesheet-warnings ul {
@@ -557,29 +870,29 @@
         .toast-stack .toast {
             pointer-events: auto;
             padding: 8px 12px;
-            border-radius: 6px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            border-radius: var(--radius-sm);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow);
             font-size: 13px;
             line-height: 1.35;
             animation: toast-in 0.25s ease-out;
+            background: var(--cream);
+            color: var(--ink);
         }
 
         .toast.toast-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: var(--cream);
+            color: var(--positive);
         }
 
         .toast.toast-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: var(--cream);
+            color: var(--negative);
         }
 
         .toast.toast-info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
+            background: var(--cream-2);
+            color: var(--ink);
         }
 
         @keyframes toast-in {
@@ -596,9 +909,10 @@
         .week-summary-details {
             margin-bottom: 10px;
             padding: 8px 12px;
-            background: #fff;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
+            background: var(--cream);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .week-summary-summary {
@@ -632,19 +946,28 @@
             }
         }
 
+        .week-summary-col {
+            background: var(--cream-2);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            padding: 8px 10px;
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
         .week-summary-col h4 {
             margin: 0 0 8px 0;
             font-size: 13px;
-            color: #667eea;
+            color: var(--ink);
             text-transform: uppercase;
             letter-spacing: 0.03em;
+            font-weight: 800;
         }
 
         .week-summary-col ul {
             margin: 0;
             padding-left: 18px;
             font-size: 13px;
-            color: #333;
+            color: var(--text);
         }
 
         .week-summary-col li {
@@ -662,18 +985,20 @@
         .btn-preset {
             padding: 4px 8px;
             font-size: 11px;
-            border-radius: 4px;
-            background: #f8f9fa;
-            color: #495057;
-            border: 1px solid #dee2e6;
+            border-radius: var(--radius-sm);
+            background: var(--cream);
+            color: var(--text);
+            border: var(--border-w) solid var(--ink);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+            box-shadow: var(--brutal-shadow-sm);
+            font-weight: 700;
         }
 
         .btn-preset:hover {
-            background: #667eea;
-            color: white;
-            border-color: #667eea;
+            background: var(--yellow);
+            color: var(--ink);
+            border-color: var(--ink);
         }
 
         .btn-preset:active {
@@ -682,12 +1007,13 @@
 
         /* Today Highlight */
         .today-column {
-            background: rgba(102, 126, 234, 0.08) !important;
+            background: var(--yellow) !important;
         }
 
         .today-column input {
-            background: rgba(102, 126, 234, 0.12) !important;
-            border-color: #667eea !important;
+            background: var(--cream) !important;
+            border-color: var(--ink) !important;
+            font-weight: 700;
         }
 
         /* Weekend Toggle */
@@ -712,16 +1038,18 @@
 
         /* Header Total Badge */
         .header-total-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--yellow);
+            color: var(--ink);
             padding: 4px 10px;
-            border-radius: 16px;
+            border-radius: var(--radius-pill);
+            border: var(--border-w) solid var(--ink);
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 800;
             margin-left: 6px;
             display: inline-flex;
             align-items: center;
             gap: 4px;
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         /* Copy Days Modal */
@@ -738,15 +1066,17 @@
             align-items: center;
             gap: 4px;
             padding: 8px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            background: var(--cream);
+            box-shadow: var(--brutal-shadow-sm);
             cursor: pointer;
             transition: all 0.2s;
         }
 
         .copy-day-checkbox:hover {
-            border-color: #667eea;
-            background: #f0f4ff;
+            border-color: var(--ink);
+            background: var(--yellow);
         }
 
         .copy-day-checkbox input {
@@ -755,15 +1085,28 @@
 
         .copy-day-checkbox label {
             font-size: 11px;
-            color: #666;
+            color: var(--ink);
+            font-weight: 600;
             cursor: pointer;
+        }
+
+        .copy-day-checkbox:has(input:checked) {
+            background: var(--yellow);
+            border-color: var(--ink);
         }
 
         /* Better Mobile Touch */
         @media (hover: none) and (pointer: coarse) {
-            .timesheet-grid td input {
+            .timesheet-grid td input:not([type="checkbox"]) {
                 padding: 10px 8px;
                 font-size: 16px;
+            }
+
+            .timesheet-grid .row-select-cell input[type="checkbox"] {
+                width: 22px;
+                height: 22px;
+                min-width: 22px;
+                min-height: 22px;
             }
         }
 
@@ -771,9 +1114,10 @@
             max-height: 260px;
             overflow: auto;
             margin-top: 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
             font-size: 12px;
+            background: var(--cream);
         }
 
         #csv-import-preview table {
@@ -789,19 +1133,20 @@
         }
 
         #csv-import-preview th {
-            background: #f8f9fa;
+            background: var(--yellow);
             position: sticky;
             top: 0;
+            border-bottom: var(--border-w) solid var(--ink);
         }
 
         .csv-preview-ok {
-            color: #155724;
-            font-weight: 600;
+            color: var(--positive);
+            font-weight: 700;
         }
 
         .csv-preview-bad {
-            color: #721c24;
-            font-weight: 600;
+            color: var(--negative);
+            font-weight: 700;
         }
 
         @media print {
@@ -856,10 +1201,10 @@
             flex: 0 0 auto;
             align-self: center;
             padding: 6px 12px;
-            background: #fff;
-            border-radius: 999px;
-            border: 1px solid rgba(102, 126, 234, 0.2);
-            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.1);
+            background: var(--cream);
+            border-radius: var(--radius-pill);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .week-nav-btn {
@@ -870,32 +1215,31 @@
             height: 34px;
             padding: 0;
             margin: 0;
-            border: 1px solid rgba(102, 126, 234, 0.35);
+            border: var(--border-w) solid var(--ink);
             border-radius: 50%;
-            background: linear-gradient(160deg, #ffffff 0%, #f0f2ff 100%);
-            color: #5b67d8;
+            background: var(--yellow);
+            color: var(--ink);
             cursor: pointer;
             flex-shrink: 0;
-            transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease, border-color 0.18s ease;
-            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.15);
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .week-nav-btn:hover {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #fff;
-            border-color: transparent;
-            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.45);
-            transform: translateY(-1px);
+            background: var(--yellow-deep);
+            color: var(--ink);
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 var(--ink);
         }
 
         .week-nav-btn:active {
-            transform: translateY(0) scale(0.96);
-            box-shadow: 0 1px 6px rgba(102, 126, 234, 0.35);
+            transform: translate(3px, 3px);
+            box-shadow: none;
         }
 
         .week-nav-btn:focus-visible {
             outline: none;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.45), 0 2px 8px rgba(102, 126, 234, 0.25);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         .week-nav-btn .week-nav-btn-svg {
@@ -906,7 +1250,7 @@
         }
 
         #week-range {
-            color: #2d3748;
+            color: var(--text);
             font-size: 15px;
             font-weight: 700;
             min-width: min(100%, 220px);
@@ -915,8 +1259,19 @@
             letter-spacing: -0.02em;
         }
 
+        @media (max-width: 768px) {
+            .week-navigation-after-entries .week-toolbar-top {
+                grid-template-columns: 1fr;
+            }
+
+            .week-navigation-after-entries .week-toolbar-group-copy {
+                border-right: none;
+                border-bottom: var(--border-w) solid var(--ink);
+            }
+        }
+
         @media (max-width: 640px) {
-            .week-navigation {
+            .week-navigation:not(.week-navigation-after-entries) {
                 padding: 10px 12px;
             }
 
@@ -956,36 +1311,49 @@
 
         .timesheet-grid {
             width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 8px;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: var(--cream);
+            border-radius: var(--radius-sm);
             overflow: hidden;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .timesheet-grid thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--yellow);
+            color: var(--ink);
         }
 
         .timesheet-grid th {
             padding: 8px 6px;
             text-align: left;
-            font-weight: 600;
+            font-weight: 800;
             font-size: 12px;
             white-space: nowrap;
+            border-bottom: var(--border-w) solid var(--ink);
+            border-right: 1px solid var(--ink);
+        }
+
+        .timesheet-grid th:last-child {
+            border-right: none;
         }
 
         .timesheet-grid .row-select-th,
         .timesheet-grid .row-select-cell {
-            width: 36px;
+            width: 40px;
             text-align: center;
             vertical-align: middle;
             padding: 4px 4px;
         }
 
+        .timesheet-grid .row-select-cell input[type="checkbox"] {
+            display: inline-block;
+        }
+
         .timesheet-grid thead th.row-select-th,
         .timesheet-grid thead th.project-task-th {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: transparent;
         }
 
         .timesheet-grid th.project-task-th,
@@ -997,58 +1365,85 @@
         }
 
         .timesheet-grid tbody td.project-task-cell {
-            background-color: #fff;
+            background-color: var(--cream);
         }
 
         .timesheet-grid tbody tr:hover td.project-task-cell {
-            background-color: #f8f9fa;
+            background-color: var(--cream-2);
         }
 
-        .timesheet-grid tbody tr[data-timesheet-totals] td.project-task-cell {
-            background-color: #e9ecef;
+        .timesheet-grid tbody tr.timesheet-totals-row {
+            font-weight: bold;
+            border-top: 2px solid var(--totals-row-accent);
+        }
+
+        .timesheet-grid tbody tr.timesheet-totals-row td {
+            background-color: var(--totals-row-bg);
+        }
+
+        .timesheet-grid tbody tr.timesheet-totals-row .project-task-cell {
+            font-size: 15px;
+        }
+
+        .timesheet-grid tbody tr.timesheet-totals-row .total-cell {
+            font-weight: bold;
+        }
+
+        .timesheet-grid tbody tr.timesheet-totals-row .grand-total-cell {
+            font-size: 15px;
+        }
+
+        .timesheet-grid tbody tr.timesheet-totals-row:hover td,
+        .timesheet-grid tbody tr.timesheet-totals-row:hover td.project-task-cell {
+            background-color: var(--totals-row-bg);
         }
 
         .timesheet-grid tbody tr {
-            border-bottom: 1px solid #e0e0e0;
-            transition: background-color 0.2s;
+            border-bottom: 1px solid var(--ink);
+            transition: background-color 0.15s;
         }
 
         .timesheet-grid tbody tr:hover {
-            background-color: #f8f9fa;
+            background-color: var(--cream-2);
         }
 
         .timesheet-grid td {
             padding: 6px 5px;
             font-size: 12px;
+            border-right: 1px solid rgba(0, 0, 0, 0.12);
+            background: var(--cream);
         }
 
-        .timesheet-grid td input {
+        .timesheet-grid td input:not([type="checkbox"]) {
             width: 100%;
             padding: 4px;
-            border: 1px solid #e0e0e0;
-            border-radius: 3px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: 6px;
             text-align: center;
             font-size: 12px;
+            background: var(--cream-2);
+            font-weight: 600;
         }
 
-        .timesheet-grid td input:focus {
+        .timesheet-grid td input:not([type="checkbox"]):focus {
             outline: none;
-            border-color: #667eea;
-            background: #f0f4ff;
+            border-color: var(--ink);
+            background: var(--yellow);
+            box-shadow: 2px 2px 0 var(--ink);
         }
 
         .timesheet-grid td input[type="text"] {
             font-family: 'Courier New', monospace;
         }
 
-        .timesheet-grid td input:not(:placeholder-shown) {
-            background: #fff9e6;
-            border-color: #ffd700;
+        .timesheet-grid td input:not([type="checkbox"]):not(:placeholder-shown) {
+            background: var(--yellow);
+            border-color: var(--ink);
         }
 
-        .timesheet-grid td input:hover {
-            border-color: #667eea;
-            background: #f0f4ff;
+        .timesheet-grid td input:not([type="checkbox"]):hover {
+            border-color: var(--ink);
+            background: var(--yellow);
         }
 
         .timesheet-grid .day-cell {
@@ -1061,10 +1456,11 @@
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%);
-            background: #333;
-            color: white;
+            background: var(--cell-tooltip-bg);
+            color: var(--cell-tooltip-fg);
             padding: 4px 8px;
-            border-radius: 4px;
+            border-radius: 6px;
+            border: var(--border-w) solid var(--cell-tooltip-border);
             font-size: 11px;
             white-space: nowrap;
             opacity: 0;
@@ -1072,6 +1468,11 @@
             transition: opacity 0.2s;
             z-index: 1000;
             margin-bottom: 5px;
+        }
+
+        [data-theme="classic"] .timesheet-grid .day-cell::after {
+            border-radius: 4px;
+            border-width: 0;
         }
         
         @media (hover: none) and (pointer: coarse) {
@@ -1090,9 +1491,9 @@
         }
 
         .timesheet-grid .total-cell {
-            font-weight: 600;
+            font-weight: 800;
             text-align: center;
-            background: #f8f9fa;
+            background: var(--cream-2);
         }
 
         .timesheet-grid .actions-cell {
@@ -1112,21 +1513,21 @@
         }
 
         .btn-edit {
-            background: #17a2b8;
-            color: white;
+            background: var(--cream);
+            color: var(--ink);
         }
 
         .btn-edit:hover {
-            background: #138496;
+            background: var(--yellow);
         }
 
         .btn-delete {
-            background: #dc3545;
-            color: white;
+            background: var(--cream);
+            color: var(--negative);
         }
 
         .btn-delete:hover {
-            background: #c82333;
+            background: #ffebee;
         }
 
         .timesheet-footer-actions {
@@ -1140,8 +1541,10 @@
         .timesheet-footer-actions .add-entry-btn {
             flex: 2 1 220px;
             margin-top: 0;
-            padding: 9px;
-            font-size: 13px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 800;
+            background: var(--yellow);
         }
 
         .timesheet-footer-actions #delete-selected-rows-btn {
@@ -1162,7 +1565,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.45);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -1170,14 +1573,15 @@
         }
 
         .modal-content {
-            background: white;
-            border-radius: 10px;
+            background: var(--cream);
+            border-radius: var(--radius);
             padding: 18px 20px;
             max-width: 480px;
             width: 90%;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow);
         }
 
         .modal-content.modal-content-wide {
@@ -1190,28 +1594,32 @@
             align-items: center;
             margin-bottom: 14px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #f0f0f0;
+            border-bottom: var(--border-w) solid var(--ink);
         }
 
         .modal-header h3 {
-            color: #333;
+            color: var(--ink);
             font-size: 18px;
+            font-weight: 800;
         }
 
         .modal-close {
-            background: none;
-            border: none;
-            font-size: 32px;
-            color: #999;
+            background: var(--yellow);
+            border: var(--border-w) solid var(--ink);
+            border-radius: 50%;
+            font-size: 22px;
+            color: var(--ink);
             cursor: pointer;
             line-height: 1;
             padding: 0;
             width: 32px;
             height: 32px;
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .modal-close:hover {
-            color: #333;
+            transform: translate(2px, 2px);
+            box-shadow: 1px 1px 0 var(--ink);
         }
 
         .modal-actions {
@@ -1229,12 +1637,14 @@
         }
 
         .error {
-            background: #f8d7da;
-            color: #721c24;
+            background: var(--cream);
+            color: var(--negative);
             padding: 10px 12px;
-            border-radius: 6px;
+            border-radius: var(--radius-sm);
             margin-bottom: 12px;
-            border: 1px solid #f5c6cb;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
+            font-weight: 700;
         }
 
         .empty-state {
@@ -1250,39 +1660,407 @@
 
         .status-badge {
             padding: 4px 10px;
-            border-radius: 5px;
+            border-radius: var(--radius-sm);
             font-size: 12px;
-            font-weight: 500;
+            font-weight: 700;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: var(--brutal-shadow-sm);
         }
 
         .status-not-submitted {
-            background: #fff3cd;
-            color: #856404;
+            background: var(--cream-2);
+            color: var(--ink);
         }
 
         .status-submitted {
-            background: #d1ecf1;
-            color: #0c5460;
+            background: var(--yellow);
+            color: var(--ink);
         }
 
         .status-approved {
-            background: #d4edda;
-            color: #155724;
+            background: var(--cream);
+            color: var(--positive);
         }
 
         .status-rejected {
-            background: #f8d7da;
-            color: #721c24;
+            background: var(--cream);
+            color: var(--negative);
         }
 
         .status-in-approval {
-            background: #e2e3e5;
-            color: #383d41;
+            background: var(--cream-2);
+            color: var(--ink);
         }
 
         #submit-timesheet-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        /* Classic theme (soft green/blue — from index copy 2) */
+        [data-theme="classic"] body {
+            font-family: 'Huninn', 'Barlow', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background:
+                radial-gradient(900px 500px at 15% 10%, rgba(37, 99, 235, 0.18), transparent 60%),
+                radial-gradient(800px 500px at 85% 15%, rgba(16, 185, 129, 0.18), transparent 62%),
+                linear-gradient(180deg, #f6f8ff 0%, #eef6ff 100%);
+        }
+
+        [data-theme="classic"] .btn {
+            border: none;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
+        [data-theme="classic"] .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 22px rgba(16, 185, 129, 0.18);
+        }
+
+        [data-theme="classic"] .btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        [data-theme="classic"] .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-700) 100%);
+            color: #fff;
+        }
+
+        [data-theme="classic"] .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 10px 22px rgba(16, 185, 129, 0.28);
+        }
+
+        [data-theme="classic"] .btn-secondary {
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--text);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+        }
+
+        [data-theme="classic"] .btn-secondary:hover:not(:disabled) {
+            background: rgba(15, 23, 42, 0.10);
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
+        [data-theme="classic"] .auth-card,
+        [data-theme="classic"] #timesheet-container,
+        [data-theme="classic"] .app-busy-inner,
+        [data-theme="classic"] .modal-content {
+            background: var(--cream);
+            border: 1px solid var(--border);
+            box-shadow: var(--brutal-shadow);
+        }
+
+        [data-theme="classic"] .form-group input:not([type="checkbox"]):not([type="radio"]),
+        [data-theme="classic"] .form-group select,
+        [data-theme="classic"] .form-group textarea,
+        [data-theme="classic"] .timesheet-week-status-filter-input,
+        [data-theme="classic"] .week-copy-date-input,
+        [data-theme="classic"] .template-select,
+        [data-theme="classic"] .header-mini-select,
+        [data-theme="classic"] .header-date-input {
+            border: 1px solid var(--border);
+            box-shadow: none;
+            background: var(--cream);
+        }
+
+        [data-theme="classic"] .form-group input:not([type="checkbox"]):not([type="radio"]):focus,
+        [data-theme="classic"] .form-group select:focus,
+        [data-theme="classic"] .form-group textarea:focus,
+        [data-theme="classic"] .timesheet-week-status-filter-input:focus,
+        [data-theme="classic"] .week-copy-date-input:focus,
+        [data-theme="classic"] .template-select:focus {
+            border-color: rgba(16, 185, 129, 0.7);
+            box-shadow: var(--ring);
+        }
+
+        [data-theme="classic"] input[type="checkbox"] {
+            border-width: 1px;
+            border-color: var(--border);
+            box-shadow: none;
+            border-radius: 4px;
+        }
+
+        [data-theme="classic"] input[type="checkbox"]:focus-visible {
+            box-shadow: var(--ring);
+        }
+
+        [data-theme="classic"] input[type="checkbox"]:active:not(:disabled) {
+            transform: none;
+        }
+
+        [data-theme="classic"] .header {
+            border-bottom: 1px solid var(--border);
+        }
+
+        [data-theme="classic"] .header h1 {
+            font-weight: 700;
+        }
+
+        [data-theme="classic"] .username-display {
+            padding: 4px 10px 4px 4px;
+            border-radius: 6px;
+            background: rgba(37, 99, 235, 0.10);
+            border: none;
+            box-shadow: none;
+            gap: 6px;
+            color: var(--accent);
+        }
+
+        [data-theme="classic"] .username-display-icon {
+            display: inline-flex;
+            width: 22px;
+            height: 22px;
+            background: rgba(37, 99, 235, 0.18);
+            border: none;
+            border-radius: 50%;
+            box-shadow: none;
+            color: var(--accent);
+        }
+
+        [data-theme="classic"] .username-display-icon svg {
+            width: 13px;
+            height: 13px;
+        }
+
+        [data-theme="classic"] .username-display-text {
+            color: var(--accent);
+        }
+
+        [data-theme="classic"] .btn-support {
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-700) 100%);
+            color: #fff;
+        }
+
+        [data-theme="classic"] .btn-support:hover {
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+        }
+
+        [data-theme="classic"] .timesheet-week-status-bar,
+        [data-theme="classic"] .week-navigation:not(.week-navigation-after-entries) {
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.86) 0%, rgba(247, 250, 252, 0.95) 100%);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 22px rgba(2, 6, 23, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        }
+
+        [data-theme="classic"] .week-navigation-after-entries {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+
+        [data-theme="classic"] .week-navigation-after-entries .week-toolbar-top {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            overflow: visible;
+        }
+
+        [data-theme="classic"] .week-navigation-after-entries .week-toolbar-group {
+            flex: 1 1 280px;
+            background: var(--cream);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="classic"] .week-navigation-after-entries .week-toolbar-group-copy {
+            border-right: none;
+            border-bottom: none;
+            border-left: 4px solid var(--primary);
+        }
+
+        [data-theme="classic"] .week-navigation-after-entries .week-toolbar-group-templates {
+            border-left: 4px solid var(--accent);
+        }
+
+        [data-theme="classic"] .week-toolbar-group-heading {
+            color: var(--muted);
+            border-bottom: 2px solid rgba(2, 6, 23, 0.10);
+        }
+
+        [data-theme="classic"] .week-nav-center {
+            background: var(--cream);
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 18px rgba(2, 6, 23, 0.06);
+        }
+
+        [data-theme="classic"] .week-nav-btn {
+            border: 1px solid var(--border);
+            background: linear-gradient(160deg, rgba(255, 255, 255, 0.95) 0%, rgba(247, 250, 252, 0.95) 100%);
+            color: var(--text);
+            box-shadow: 0 6px 14px rgba(2, 6, 23, 0.08);
+        }
+
+        [data-theme="classic"] .week-nav-btn:hover {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-700) 100%);
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 12px 22px rgba(16, 185, 129, 0.25);
+        }
+
+        [data-theme="classic"] .timesheet-grid {
+            border: 1px solid var(--border);
+            box-shadow: none;
+            background: var(--cream);
+        }
+
+        [data-theme="classic"] .timesheet-grid thead {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.92) 0%, rgba(37, 99, 235, 0.92) 55%, rgba(16, 185, 129, 0.92) 100%);
+            color: #fff;
+        }
+
+        [data-theme="classic"] .timesheet-grid th {
+            font-weight: 600;
+            border-bottom: none;
+            border-right: none;
+        }
+
+        [data-theme="classic"] .timesheet-grid td {
+            border-right: none;
+            background: var(--cream);
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody td.project-task-cell {
+            background-color: #fff;
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody tr:hover td.project-task-cell {
+            background-color: #f8f9fa;
+        }
+
+        [data-theme="classic"] .timesheet-grid td input:not([type="checkbox"]) {
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            background: var(--cream-2);
+            font-weight: 400;
+            box-shadow: none;
+        }
+
+        [data-theme="classic"] .timesheet-grid td input:not([type="checkbox"]):focus {
+            border-color: rgba(16, 185, 129, 0.7);
+            background: rgba(16, 185, 129, 0.06);
+            box-shadow: var(--ring);
+        }
+
+        [data-theme="classic"] .timesheet-grid td input:not([type="checkbox"]):not(:placeholder-shown) {
+            background: #fff9e6;
+            border-color: #ffd700;
+        }
+
+        [data-theme="classic"] .timesheet-grid td input:not([type="checkbox"]):hover {
+            border-color: rgba(16, 185, 129, 0.55);
+            background: rgba(16, 185, 129, 0.04);
+        }
+
+        [data-theme="classic"] .today-column {
+            background: rgba(16, 185, 129, 0.10) !important;
+        }
+
+        [data-theme="classic"] .today-column input {
+            background: rgba(16, 185, 129, 0.12) !important;
+            border-color: rgba(16, 185, 129, 0.75) !important;
+            font-weight: 400;
+        }
+
+        [data-theme="classic"] .timesheet-grid .total-cell {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody tr.timesheet-totals-row {
+            border-top: 2px solid rgba(16, 185, 129, 0.45);
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody tr.timesheet-totals-row td,
+        [data-theme="classic"] .timesheet-grid tbody tr.timesheet-totals-row td.project-task-cell {
+            background-color: var(--totals-row-bg);
+        }
+
+        [data-theme="classic"] .timesheet-grid tbody tr.timesheet-totals-row:hover td,
+        [data-theme="classic"] .timesheet-grid tbody tr.timesheet-totals-row:hover td.project-task-cell {
+            background-color: var(--totals-row-bg);
+        }
+
+        [data-theme="classic"] .timesheet-footer-actions .add-entry-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-700) 100%);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        [data-theme="classic"] .header-total-badge {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-700) 100%);
+            color: #fff;
+            border: none;
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
+        [data-theme="classic"] .week-summary-details,
+        [data-theme="classic"] .week-summary-col,
+        [data-theme="classic"] .timesheet-warnings,
+        [data-theme="classic"] .week-template-weekdays,
+        [data-theme="classic"] .copy-day-checkbox {
+            border: 1px solid var(--border);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        [data-theme="classic"] .status-badge {
+            border: 1px solid var(--border);
+            box-shadow: none;
+        }
+
+        [data-theme="classic"] .status-submitted {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        [data-theme="classic"] .status-not-submitted {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        [data-theme="classic"] .modal-close {
+            background: none;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            font-size: 32px;
+            color: #999;
+        }
+
+        [data-theme="classic"] .modal-close:hover {
+            transform: none;
+            color: var(--text);
+        }
+
+        [data-theme="classic"] .modal-header {
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        [data-theme="classic"] .toast-stack .toast {
+            border: 1px solid var(--border);
+            box-shadow: var(--brutal-shadow);
+        }
+
+        [data-theme="classic"] .btn-preset:hover {
+            background: var(--primary);
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            [data-theme="classic"] .week-navigation-after-entries .week-toolbar-group-copy {
+                border-bottom: none;
+                border-right: none;
+                border-left: 4px solid var(--primary);
+            }
         }
     </style>
 </head>
@@ -1290,7 +2068,14 @@
     <!-- Authentication Form -->
     <div id="auth-container" class="container">
         <div class="auth-card">
-            <h1>TimeLive Authentication</h1>
+            <div class="auth-card-top">
+                <h1>TimeLive Authentication</h1>
+                <button type="button" class="theme-toggle-btn btn btn-secondary btn-small" aria-pressed="false" title="Switch to classic theme" aria-label="Switch to classic theme">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h10v10H7V7Z" stroke="currentColor" stroke-width="2.25"/><path d="M4 4h4M16 4h4M4 16h4M16 16h4" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/></svg>
+                    <span class="theme-switch-to-classic">Classic</span>
+                    <span class="theme-switch-to-brutal">Brutal</span>
+                </button>
+            </div>
             <form id="auth-form">
                 <div class="form-group">
                     <label for="domain">Domain</label>
@@ -1317,7 +2102,20 @@
         <div class="header">
             <h1>TimeLive Timesheet</h1>
             <div class="header-actions no-print">
-                <span id="username-display" class="username-display"></span>
+                <button type="button" class="theme-toggle-btn btn btn-secondary btn-small" aria-pressed="false" title="Switch to classic theme" aria-label="Switch to classic theme">
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7h10v10H7V7Z" stroke="currentColor" stroke-width="2.25"/><path d="M4 4h4M16 4h4M4 16h4M16 16h4" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/></svg>
+                    <span class="theme-switch-to-classic">Classic</span>
+                    <span class="theme-switch-to-brutal">Brutal</span>
+                </button>
+                <span id="username-display" class="username-display" hidden>
+                    <span class="username-display-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2.25"/>
+                            <path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
+                        </svg>
+                    </span>
+                    <span id="username-display-text" class="username-display-text"></span>
+                </span>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                 </button>
@@ -1360,7 +2158,7 @@
                     <div class="timesheet-week-status-meta">
                         <div id="timesheet-status-display">
                             <span id="status-label">Status:</span>
-                            <span id="status-badge" style="padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 500; background: #e9ecef; color: #495057;">Loading...</span>
+                            <span id="status-badge" class="status-badge status-not-submitted">Loading...</span>
                         </div>
                         <button type="button" id="submit-timesheet-btn" class="btn btn-primary no-print" style="display: none;">Submit Timesheet</button>
                     </div>
@@ -2482,13 +3280,59 @@
             return { successCount, errorCount, errors };
         }
 
+        const THEME_STORAGE_KEY = 'timelive-ui-theme';
+
+        function getStoredTheme() {
+            try {
+                const stored = localStorage.getItem(THEME_STORAGE_KEY);
+                if (stored === 'classic') return 'classic';
+                if (stored === 'dark') return 'brutal';
+                return 'brutal';
+            } catch (e) {
+                return 'brutal';
+            }
+        }
+
+        function applyTheme(theme) {
+            const next = theme === 'classic' ? 'classic' : 'brutal';
+            document.documentElement.setAttribute('data-theme', next);
+            try {
+                localStorage.setItem(THEME_STORAGE_KEY, next);
+            } catch (e) {
+                console.warn('TimeLive: could not save theme preference.', e);
+            }
+            syncThemeToggleButtons(next);
+        }
+
+        function syncThemeToggleButtons(theme) {
+            const isClassic = theme === 'classic';
+            document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+                btn.setAttribute('aria-pressed', isClassic ? 'true' : 'false');
+                const label = isClassic ? 'Switch to brutal theme' : 'Switch to classic theme';
+                btn.title = label;
+                btn.setAttribute('aria-label', label);
+            });
+        }
+
+        function toggleTheme() {
+            applyTheme(getStoredTheme() === 'classic' ? 'brutal' : 'classic');
+        }
+
+        function initThemeFromStorage() {
+            applyTheme(getStoredTheme());
+        }
+
         // Initialize Application
         document.addEventListener('DOMContentLoaded', () => {
-            initializeApp();
+            initializeApp().catch((err) => {
+                console.error('TimeLive: failed to initialize app.', err);
+                showAuth();
+            });
         });
 
-        function initializeApp() {
-            const credentials = getStoredCredentials();
+        async function initializeApp() {
+            initThemeFromStorage();
+            const credentials = await getStoredCredentials();
             
             if (credentials) {
                 loadCredentials(credentials);
@@ -2521,6 +3365,9 @@
         }
 
         function setupEventListeners() {
+            document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
+                btn.addEventListener('click', toggleTheme);
+            });
             bindEl('auth-form', 'submit', handleAuthSubmit);
             bindEl('logout-btn', 'click', handleLogout);
             bindEl('refresh-btn', 'click', loadTimesheetData);
@@ -2581,8 +3428,8 @@
                     const hours = parseFloat(this.dataset.hours);
                     hoursInput.value = hoursToHHMM(hours);
                     // Flash the button to show it was clicked
-                    this.style.background = '#667eea';
-                    this.style.color = 'white';
+                    this.style.background = 'var(--yellow)';
+                    this.style.color = 'var(--ink)';
                     setTimeout(() => {
                         this.style.background = '';
                         this.style.color = '';
@@ -2672,7 +3519,7 @@
             try {
                 api = new TimeLiveAPI(domain, username, password);
                 await api.getEmployees();
-                storeCredentials({ domain, username, password });
+                await storeCredentials({ domain, username, password });
                 showTimesheet();
                 await loadInitialData();
                 updateUsernameDisplay();
@@ -2689,18 +3536,124 @@
             showAuth();
         }
 
-        // Credential Storage (using localStorage)
-        function storeCredentials(credentials) {
-            localStorage.setItem('timelive_credentials', JSON.stringify(credentials));
+        // Credential storage (password encrypted in localStorage via Web Crypto API)
+        const CREDENTIALS_STORAGE_KEY = 'timelive_credentials';
+        const CREDENTIALS_CRYPTO_KEY_STORAGE = 'timelive_credentials_crypto_key';
+
+        function assertCredentialCryptoAvailable() {
+            if (!window.crypto || !crypto.subtle) {
+                throw new Error('Password encryption needs HTTPS or localhost (Web Crypto is unavailable).');
+            }
         }
 
-        function getStoredCredentials() {
-            const stored = localStorage.getItem('timelive_credentials');
-            return stored ? JSON.parse(stored) : null;
+        async function getOrCreateCredentialsCryptoKey() {
+            assertCredentialCryptoAvailable();
+            const stored = localStorage.getItem(CREDENTIALS_CRYPTO_KEY_STORAGE);
+            if (stored) {
+                try {
+                    const jwk = JSON.parse(stored);
+                    return crypto.subtle.importKey(
+                        'jwk',
+                        jwk,
+                        { name: 'AES-GCM', length: 256 },
+                        true,
+                        ['encrypt', 'decrypt']
+                    );
+                } catch (e) {
+                    console.warn('TimeLive: invalid crypto key, generating a new one.', e);
+                    localStorage.removeItem(CREDENTIALS_CRYPTO_KEY_STORAGE);
+                }
+            }
+            const key = await crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+            const exported = await crypto.subtle.exportKey('jwk', key);
+            localStorage.setItem(CREDENTIALS_CRYPTO_KEY_STORAGE, JSON.stringify(exported));
+            return key;
+        }
+
+        async function encryptPassword(password) {
+            const key = await getOrCreateCredentialsCryptoKey();
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const ciphertext = await crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv },
+                key,
+                new TextEncoder().encode(password)
+            );
+            return {
+                iv: Array.from(iv),
+                data: Array.from(new Uint8Array(ciphertext))
+            };
+        }
+
+        async function decryptPassword(encrypted) {
+            if (!encrypted || !encrypted.iv || !encrypted.data) {
+                throw new Error('Invalid encrypted password payload');
+            }
+            const key = await getOrCreateCredentialsCryptoKey();
+            const plaintext = await crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: new Uint8Array(encrypted.iv) },
+                key,
+                new Uint8Array(encrypted.data)
+            );
+            return new TextDecoder().decode(plaintext);
+        }
+
+        async function storeCredentials(credentials) {
+            const passwordEnc = await encryptPassword(credentials.password);
+            localStorage.setItem(CREDENTIALS_STORAGE_KEY, JSON.stringify({
+                domain: credentials.domain,
+                username: credentials.username,
+                passwordEnc,
+                v: 1
+            }));
+        }
+
+        async function getStoredCredentials() {
+            const stored = localStorage.getItem(CREDENTIALS_STORAGE_KEY);
+            if (!stored) return null;
+
+            let parsed;
+            try {
+                parsed = JSON.parse(stored);
+            } catch (e) {
+                console.warn('TimeLive: could not parse stored credentials.', e);
+                return null;
+            }
+
+            if (!parsed || typeof parsed !== 'object') return null;
+
+            // Migrate legacy plaintext storage
+            if (parsed.password && !parsed.passwordEnc) {
+                const legacy = {
+                    domain: parsed.domain,
+                    username: parsed.username,
+                    password: parsed.password
+                };
+                await storeCredentials(legacy);
+                return legacy;
+            }
+
+            if (!parsed.passwordEnc) return null;
+
+            try {
+                const password = await decryptPassword(parsed.passwordEnc);
+                return {
+                    domain: parsed.domain,
+                    username: parsed.username,
+                    password
+                };
+            } catch (e) {
+                console.error('TimeLive: could not decrypt stored password.', e);
+                clearStoredCredentials();
+                return null;
+            }
         }
 
         function clearStoredCredentials() {
-            localStorage.removeItem('timelive_credentials');
+            localStorage.removeItem(CREDENTIALS_STORAGE_KEY);
             clearSessionData();
         }
 
@@ -2830,21 +3783,24 @@
             updateUsernameDisplay();
         }
 
-        function updateUsernameDisplay() {
+        async function updateUsernameDisplay() {
             const usernameDisplay = document.getElementById('username-display');
-            const credentials = getStoredCredentials();
+            const usernameText = document.getElementById('username-display-text');
+            const credentials = await getStoredCredentials();
             
-            if (usernameDisplay) {
-                if (currentEmployee && currentEmployee.Username) {
-                    usernameDisplay.textContent = `👤 ${currentEmployee.Username}`;
-                } else if (currentEmployee && currentEmployee.EmployeeName) {
-                    usernameDisplay.textContent = `👤 ${currentEmployee.EmployeeName}`;
-                } else if (credentials && credentials.username) {
-                    usernameDisplay.textContent = `👤 ${credentials.username}`;
-                } else {
-                    usernameDisplay.textContent = '';
-                }
+            if (!usernameDisplay || !usernameText) return;
+
+            let name = '';
+            if (currentEmployee && currentEmployee.Username) {
+                name = currentEmployee.Username;
+            } else if (currentEmployee && currentEmployee.EmployeeName) {
+                name = currentEmployee.EmployeeName;
+            } else if (credentials && credentials.username) {
+                name = credentials.username;
             }
+
+            usernameText.textContent = name;
+            usernameDisplay.hidden = !name;
         }
 
         // Week Management
@@ -3106,7 +4062,7 @@
 
         async function loadCurrentEmployee() {
             try {
-                const credentials = getStoredCredentials();
+                const credentials = await getStoredCredentials();
                 if (!credentials || !credentials.username) {
                     console.error('No credentials found');
                     return;
@@ -3787,10 +4743,8 @@
 
         function createTotalsRow(dayTotals, grandTotal) {
             const row = document.createElement('tr');
+            row.className = 'timesheet-totals-row';
             row.dataset.timesheetTotals = '1';
-            row.style.fontWeight = 'bold';
-            row.style.background = '#e9ecef';
-            row.style.borderTop = '2px solid #667eea';
 
             const selectCell = document.createElement('td');
             selectCell.className = 'row-select-cell';
@@ -3800,8 +4754,6 @@
             const projectTaskCell = document.createElement('td');
             projectTaskCell.className = 'project-task-cell';
             projectTaskCell.textContent = 'Total';
-            projectTaskCell.style.fontWeight = 'bold';
-            projectTaskCell.style.fontSize = '15px';
             row.appendChild(projectTaskCell);
             
             // Day totals
@@ -3809,16 +4761,13 @@
                 const dayCell = document.createElement('td');
                 dayCell.className = 'day-cell total-cell';
                 dayCell.textContent = total > 0 ? hoursToHHMM(total) : '';
-                dayCell.style.fontWeight = 'bold';
                 row.appendChild(dayCell);
             });
             
             // Grand total
             const grandTotalCell = document.createElement('td');
-            grandTotalCell.className = 'total-cell';
+            grandTotalCell.className = 'total-cell grand-total-cell';
             grandTotalCell.textContent = hoursToHHMM(grandTotal) || '00:00';
-            grandTotalCell.style.fontWeight = 'bold';
-            grandTotalCell.style.fontSize = '15px';
             row.appendChild(grandTotalCell);
             
             return row;
