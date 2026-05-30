@@ -2266,7 +2266,6 @@
                     <span id="username-display-text" class="username-display-text"></span>
                 </span>
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
-                <button type="button" id="time-settings-btn" class="btn btn-secondary btn-small" title="Time rounding and validation settings">Time Rules</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                 </button>
@@ -2453,47 +2452,6 @@
                     <button type="button" class="btn btn-secondary" id="cancel-csv-btn">Cancel</button>
                     <button type="button" class="btn btn-secondary" id="preview-csv-btn">Preview</button>
                     <button type="button" class="btn btn-primary" id="process-csv-btn" disabled>Import</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Time Rules / Rounding Modal -->
-        <div id="time-settings-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Time Rules & Rounding</h3>
-                    <button class="modal-close" id="close-time-settings">&times;</button>
-                </div>
-                <div class="form-group">
-                    <label for="rounding-minutes">Rounding minutes</label>
-                    <select id="rounding-minutes">
-                        <option value="1">1</option>
-                        <option value="5">5</option>
-                        <option value="10">10</option>
-                        <option value="15">15</option>
-                        <option value="30">30</option>
-                        <option value="60">60</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="rounding-direction">Rounding direction</label>
-                    <select id="rounding-direction">
-                        <option value="nearest">Nearest</option>
-                        <option value="up">Up</option>
-                        <option value="down">Down</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="max-day-hours-input">Warn if day &gt;=</label>
-                    <input type="number" id="max-day-hours-input" min="1" max="24" value="12" /> hours
-                </div>
-                <div class="form-group">
-                    <label for="max-task-hours-input">Warn if task/day &gt;=</label>
-                    <input type="number" id="max-task-hours-input" min="1" max="24" value="8" /> hours
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" id="cancel-time-settings">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="save-time-settings">Save</button>
                 </div>
             </div>
         </div>
@@ -3740,7 +3698,6 @@
             bindEl('cancel-support-btn', 'click', hideSupportModal);
             bindEl('support-message-form', 'submit', handleSupportFormSubmit);
             bindEl('ai-settings-btn', 'click', showAiSettingsModal);
-            bindEl('time-settings-btn', 'click', showTimeSettingsModal);
             bindEl('close-ai-settings-modal', 'click', hideAiSettingsModal);
             bindEl('cancel-ai-settings-btn', 'click', hideAiSettingsModal);
             bindEl('clear-gemini-api-key-btn', 'click', handleClearGeminiApiKey);
@@ -6379,15 +6336,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         async function handleHoursChange(e, entry) {
-            // Apply rounding/validation rules before processing
-            let timeInputRaw = e.target.value.trim();
-            const timeSettings = getTimeRules();
-            const maybeRounded = applyRoundingToHHMM(timeInputRaw, timeSettings);
-            if (maybeRounded) {
-                timeInputRaw = maybeRounded;
-                e.target.value = maybeRounded;
-            }
-            const timeInput = timeInputRaw;
+            const timeInput = e.target.value.trim();
             const date = e.target.dataset.date;
             const projectId = parseInt(e.target.dataset.projectId);
             const taskId = parseInt(e.target.dataset.taskId);
