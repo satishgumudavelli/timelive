@@ -4644,6 +4644,14 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
         // Session Data Storage (for projects, tasks, clientId, employeeId)
         function storeSessionData(key, data) {
+            // Ignore undefined/null responses
+            if (data === undefined || data === null) return;
+
+            // Some API responses return { Message: "No Data" } — do not store those
+            if (typeof data === 'object' && data.Message === 'No Data') {
+                return;
+            }
+
             localStorage.setItem(`timelive_session_${key}`, JSON.stringify(data));
         }
 
