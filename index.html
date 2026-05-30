@@ -2266,6 +2266,7 @@
                     <span id="username-display-text" class="username-display-text"></span>
                 </span>
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
+                <button type="button" id="time-settings-btn" class="btn btn-secondary btn-small" title="Time rounding and validation settings">Time Rules</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                 </button>
@@ -2435,11 +2436,64 @@
                     <div class="csv-preview-heading" style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Preview</div>
                     <div id="csv-import-preview"></div>
                 </div>
+                <div id="csv-mapping-wrap" style="display: none; margin-top: 12px; border-top: 1px solid #eee; padding-top: 10px;">
+                    <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                        <div style="font-weight:600;">Column mapping</div>
+                        <div style="margin-left: auto; display:flex; gap:8px; align-items:center;">
+                            <input id="csv-mapping-preset-name" placeholder="Preset name" style="padding:6px; font-size:13px;" />
+                            <button class="btn btn-secondary" id="csv-save-mapping-btn">Save preset</button>
+                            <select id="csv-load-mapping" style="min-width:160px;"></select>
+                            <button class="btn btn-secondary" id="csv-delete-mapping-btn">Delete</button>
+                        </div>
+                    </div>
+                    <div id="csv-mapping"></div>
+                </div>
                 <div id="csv-import-status" style="margin: 15px 0; padding: 10px; border-radius: 8px; display: none;"></div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancel-csv-btn">Cancel</button>
                     <button type="button" class="btn btn-secondary" id="preview-csv-btn">Preview</button>
                     <button type="button" class="btn btn-primary" id="process-csv-btn" disabled>Import</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Rules / Rounding Modal -->
+        <div id="time-settings-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Time Rules & Rounding</h3>
+                    <button class="modal-close" id="close-time-settings">&times;</button>
+                </div>
+                <div class="form-group">
+                    <label for="rounding-minutes">Rounding minutes</label>
+                    <select id="rounding-minutes">
+                        <option value="1">1</option>
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="15">15</option>
+                        <option value="30">30</option>
+                        <option value="60">60</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="rounding-direction">Rounding direction</label>
+                    <select id="rounding-direction">
+                        <option value="nearest">Nearest</option>
+                        <option value="up">Up</option>
+                        <option value="down">Down</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="max-day-hours-input">Warn if day &gt;=</label>
+                    <input type="number" id="max-day-hours-input" min="1" max="24" value="12" /> hours
+                </div>
+                <div class="form-group">
+                    <label for="max-task-hours-input">Warn if task/day &gt;=</label>
+                    <input type="number" id="max-task-hours-input" min="1" max="24" value="8" /> hours
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancel-time-settings">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-time-settings">Save</button>
                 </div>
             </div>
         </div>
@@ -3435,26 +3489,66 @@
             pushAppBusy('Reading CSV…');
             try {
                 const csvText = await readFileAsText(file);
-                const entries = parseCSV(csvText);
-                csvImportPendingEntries = entries.length ? entries : null;
-                if (!entries.length) {
+                const adv = advancedParseCSV(csvText);
+                const headers = adv.headers;
+                const rows = adv.rows;
+                if (!rows.length) {
                     previewWrap.style.display = 'none';
                     previewEl.innerHTML = '';
                     importBtn.disabled = true;
                     showToast('No data rows found in CSV.', 'error');
                     return;
                 }
-                let rowsHtml = '<table><thead><tr><th>#</th><th>Date</th><th>Client</th><th>Project</th><th>Task</th><th>Time</th><th>Check</th></tr></thead><tbody>';
-                entries.forEach((row, i) => {
-                    const issues = validateCsvRowLocal(row);
-                    const ok = issues.length === 0;
-                    rowsHtml += `<tr><td>${i + 1}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.projectName)}</td><td>${escapeHtml(row.taskName)}</td><td>${escapeHtml(row.time)}</td><td class="${ok ? 'csv-preview-ok' : 'csv-preview-bad'}">${ok ? 'OK' : escapeHtml(issues.join(', '))}</td></tr>`;
+
+                // Build default mapping and show mapping UI
+                const defaultMapping = detectDefaultMapping(headers);
+                const mappingWrap = document.getElementById('csv-mapping-wrap');
+                const mappingDiv = document.getElementById('csv-mapping');
+                mappingDiv.innerHTML = '';
+                headers.forEach((h, idx) => {
+                    const row = document.createElement('div');
+                    row.style.display = 'flex';
+                    row.style.gap = '8px';
+                    row.style.alignItems = 'center';
+                    row.style.marginBottom = '6px';
+                    const label = document.createElement('div');
+                    label.textContent = h || `Column ${idx+1}`;
+                    label.style.minWidth = '200px';
+                    const sel = document.createElement('select');
+                    sel.dataset.colIndex = idx;
+                    ['date','clientName','projectName','taskName','time','notes','ignore'].forEach(opt => {
+                        const o = document.createElement('option'); o.value = opt; o.textContent = opt; sel.appendChild(o);
+                    });
+                    sel.value = defaultMapping[idx] || 'ignore';
+                    row.appendChild(label);
+                    row.appendChild(sel);
+                    mappingDiv.appendChild(row);
                 });
-                rowsHtml += '</tbody></table>';
-                previewEl.innerHTML = rowsHtml;
-                previewWrap.style.display = 'block';
-                importBtn.disabled = false;
-                showToast(`Preview: ${entries.length} row(s). Use Import to post to the server.`, 'info', 4000);
+                mappingWrap.style.display = 'block';
+
+                // Build mapped preview
+                const mappingSelEls = Array.from(mappingDiv.querySelectorAll('select'));
+                const buildMappedPreview = () => {
+                    const mapping = {};
+                    mappingSelEls.forEach(s => mapping[s.dataset.colIndex] = s.value);
+                    const mappedEntries = mapRowsWithMapping(headers, rows, mapping);
+                    csvImportPendingEntries = mappedEntries.length ? mappedEntries : null;
+                    let rowsHtml = '<table><thead><tr><th>#</th><th>Date</th><th>Client</th><th>Project</th><th>Task</th><th>Time</th><th>Check</th></tr></thead><tbody>';
+                    mappedEntries.forEach((row, i) => {
+                        const issues = validateCsvRowLocal(row);
+                        const ok = issues.length === 0;
+                        rowsHtml += `<tr><td>${i + 1}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.clientName)}</td><td>${escapeHtml(row.projectName)}</td><td>${escapeHtml(row.taskName)}</td><td>${escapeHtml(row.time)}</td><td class="${ok ? 'csv-preview-ok' : 'csv-preview-bad'}">${ok ? 'OK' : escapeHtml(issues.join(', '))}</td></tr>`;
+                    });
+                    rowsHtml += '</tbody></table>';
+                    previewEl.innerHTML = rowsHtml;
+                    previewWrap.style.display = 'block';
+                    importBtn.disabled = mappedEntries.length === 0;
+                    showToast(`Preview: ${mappedEntries.length} row(s). Use Import to post to the server.`, 'info', 3000);
+                };
+
+                mappingSelEls.forEach(s => s.addEventListener('change', buildMappedPreview));
+                buildMappedPreview();
+                loadCsvMappingPresetsSelect();
             } catch (err) {
                 csvImportPendingEntries = null;
                 importBtn.disabled = true;
@@ -3646,6 +3740,7 @@
             bindEl('cancel-support-btn', 'click', hideSupportModal);
             bindEl('support-message-form', 'submit', handleSupportFormSubmit);
             bindEl('ai-settings-btn', 'click', showAiSettingsModal);
+            bindEl('time-settings-btn', 'click', showTimeSettingsModal);
             bindEl('close-ai-settings-modal', 'click', hideAiSettingsModal);
             bindEl('cancel-ai-settings-btn', 'click', hideAiSettingsModal);
             bindEl('clear-gemini-api-key-btn', 'click', handleClearGeminiApiKey);
@@ -3664,6 +3759,46 @@
             bindEl('process-csv-btn', 'click', handleCSVImport);
             bindEl('preview-csv-btn', 'click', handleCSVPreview);
             bindEl('csv-file', 'change', resetCsvImportPreview);
+            bindEl('csv-save-mapping-btn', 'click', () => {
+                const nameEl = document.getElementById('csv-mapping-preset-name');
+                const mappingDiv = document.getElementById('csv-mapping');
+                if (!mappingDiv) return;
+                const selEls = mappingDiv.querySelectorAll('select');
+                const mapping = {};
+                selEls.forEach(s => mapping[s.dataset.colIndex] = s.value);
+                if (nameEl && nameEl.value.trim()) {
+                    saveCsvMappingPreset(nameEl.value.trim(), mapping);
+                    showToast('Mapping saved.', 'success');
+                    nameEl.value = '';
+                }
+            });
+            bindEl('csv-load-mapping', 'change', (e) => {
+                const key = e.target.value;
+                if (!key) return;
+                const raw = localStorage.getItem('timelive_csv_mapping_presets');
+                let parsed = {};
+                try { parsed = raw ? JSON.parse(raw) : {}; } catch (err) { parsed = {}; }
+                const mapping = parsed[key] || {};
+                const mappingDiv = document.getElementById('csv-mapping');
+                if (!mappingDiv) return;
+                const selEls = mappingDiv.querySelectorAll('select');
+                selEls.forEach(s => { if (mapping[s.dataset.colIndex]) s.value = mapping[s.dataset.colIndex]; });
+                // trigger preview rebuild
+                const evt = new Event('change');
+                selEls[0] && selEls[0].dispatchEvent(evt);
+            });
+            bindEl('csv-delete-mapping-btn', 'click', () => {
+                const sel = document.getElementById('csv-load-mapping');
+                const key = sel ? sel.value : '';
+                if (!key) return showToast('Pick a preset to delete.', 'error');
+                const raw = localStorage.getItem('timelive_csv_mapping_presets');
+                let parsed = {};
+                try { parsed = raw ? JSON.parse(raw) : {}; } catch (err) { parsed = {}; }
+                delete parsed[key];
+                localStorage.setItem('timelive_csv_mapping_presets', JSON.stringify(parsed));
+                loadCsvMappingPresetsSelect();
+                showToast('Preset deleted.', 'info');
+            });
             bindEl('copy-from-week-btn', 'click', copySelectedWeekToCurrent);
             bindEl('print-week-btn', 'click', () => window.print());
             bindEl('save-entry-favorite-btn', 'click', handleSaveEntryFavoriteClick);
@@ -4759,6 +4894,146 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         function getStoredClients() {
             return getSessionData('clients');
         }
+
+        // --- Typeahead combobox helper (simple fuzzy match + debounce) ---
+        function attachTypeahead(selectId) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            // Avoid attaching twice
+            if (document.getElementById(selectId + '-typeahead')) return;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = selectId + '-typeahead';
+            input.placeholder = select.options[0] ? select.options[0].textContent : '';
+            input.style.width = '100%';
+            input.style.boxSizing = 'border-box';
+            input.style.padding = '6px';
+            select.parentNode.insertBefore(input, select);
+
+            const list = document.createElement('div');
+            list.style.position = 'relative';
+            list.style.zIndex = '60';
+            select.parentNode.insertBefore(list, select.nextSibling);
+
+            let timeout = null;
+            const fuzzy = (s, q) => {
+                s = String(s || '').toLowerCase(); q = String(q || '').toLowerCase();
+                if (!q) return true;
+                if (s.includes(q)) return true;
+                const parts = q.split(/\s+/).filter(Boolean);
+                return parts.every(p => s.includes(p));
+            };
+
+            const showMatches = (q) => {
+                list.innerHTML = '';
+                const matches = [];
+                for (let i = 0; i < select.options.length; i++) {
+                    const opt = select.options[i];
+                    if (!opt.value) continue;
+                    if (fuzzy(opt.textContent, q)) matches.push(opt);
+                }
+                matches.slice(0, 12).forEach(opt => {
+                    const item = document.createElement('div');
+                    item.textContent = opt.textContent;
+                    item.style.padding = '6px';
+                    item.style.border = '1px solid #eee';
+                    item.style.cursor = 'pointer';
+                    item.addEventListener('click', () => {
+                        select.value = opt.value;
+                        const ev = new Event('change');
+                        select.dispatchEvent(ev);
+                        input.value = opt.textContent;
+                        list.innerHTML = '';
+                    });
+                    list.appendChild(item);
+                });
+            };
+
+            input.addEventListener('input', (e) => {
+                const q = e.target.value.trim();
+                clearTimeout(timeout);
+                timeout = setTimeout(() => showMatches(q), 200);
+            });
+
+            // When select changes programmatically, update input
+            select.addEventListener('change', () => {
+                const opt = select.options[select.selectedIndex];
+                input.value = opt ? opt.textContent : '';
+            });
+        }
+
+        // --- Time rules and rounding ---
+        function getTimeRules() {
+            const raw = localStorage.getItem('timelive_time_rules');
+            try {
+                const parsed = raw ? JSON.parse(raw) : null;
+                return parsed || { roundingMinutes: 15, roundingDirection: 'nearest', maxDayHours: WARN_MAX_DAY_HOURS, maxTaskHours: WARN_MAX_TASK_DAY_HOURS };
+            } catch (e) {
+                return { roundingMinutes: 15, roundingDirection: 'nearest', maxDayHours: WARN_MAX_DAY_HOURS, maxTaskHours: WARN_MAX_TASK_DAY_HOURS };
+            }
+        }
+
+        function saveTimeRules(rules) {
+            localStorage.setItem('timelive_time_rules', JSON.stringify(rules));
+        }
+
+        function applyRoundingToHHMM(hhmm, rules) {
+            if (!hhmm || !hhmm.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) return null;
+            rules = rules || getTimeRules();
+            const parts = hhmm.split(':');
+            const h = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const totalMin = h * 60 + m;
+            const round = parseInt(rules.roundingMinutes || 15, 10) || 15;
+            let roundedMin;
+            if (rules.roundingDirection === 'up') {
+                roundedMin = Math.ceil(totalMin / round) * round;
+            } else if (rules.roundingDirection === 'down') {
+                roundedMin = Math.floor(totalMin / round) * round;
+            } else {
+                roundedMin = Math.round(totalMin / round) * round;
+            }
+            roundedMin = Math.max(0, Math.min(24 * 60, roundedMin));
+            const rh = Math.floor(roundedMin / 60);
+            const rm = roundedMin % 60;
+            return String(rh).padStart(2, '0') + ':' + String(rm).padStart(2, '0');
+        }
+
+        function showTimeSettingsModal() {
+            const modal = document.getElementById('time-settings-modal');
+            const rules = getTimeRules();
+            document.getElementById('rounding-minutes').value = String(rules.roundingMinutes || 15);
+            document.getElementById('rounding-direction').value = rules.roundingDirection || 'nearest';
+            document.getElementById('max-day-hours-input').value = rules.maxDayHours || WARN_MAX_DAY_HOURS;
+            document.getElementById('max-task-hours-input').value = rules.maxTaskHours || WARN_MAX_TASK_DAY_HOURS;
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function hideTimeSettingsModal() {
+            const modal = document.getElementById('time-settings-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // bind time settings modal buttons
+        document.addEventListener('DOMContentLoaded', () => {
+            const closeBtn = document.getElementById('close-time-settings');
+            const cancelBtn = document.getElementById('cancel-time-settings');
+            const saveBtn = document.getElementById('save-time-settings');
+            if (closeBtn) closeBtn.addEventListener('click', hideTimeSettingsModal);
+            if (cancelBtn) cancelBtn.addEventListener('click', hideTimeSettingsModal);
+            if (saveBtn) saveBtn.addEventListener('click', () => {
+                const rules = {
+                    roundingMinutes: parseInt(document.getElementById('rounding-minutes').value, 10) || 15,
+                    roundingDirection: document.getElementById('rounding-direction').value || 'nearest',
+                    maxDayHours: parseFloat(document.getElementById('max-day-hours-input').value) || WARN_MAX_DAY_HOURS,
+                    maxTaskHours: parseFloat(document.getElementById('max-task-hours-input').value) || WARN_MAX_TASK_DAY_HOURS
+                };
+                saveTimeRules(rules);
+                showToast('Time rules saved.', 'success');
+                hideTimeSettingsModal();
+            });
+        });
 
         // UI Functions
         function showAuth() {
@@ -6172,7 +6447,15 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         async function handleHoursChange(e, entry) {
-            const timeInput = e.target.value.trim();
+            // Apply rounding/validation rules before processing
+            let timeInputRaw = e.target.value.trim();
+            const timeSettings = getTimeRules();
+            const maybeRounded = applyRoundingToHHMM(timeInputRaw, timeSettings);
+            if (maybeRounded) {
+                timeInputRaw = maybeRounded;
+                e.target.value = maybeRounded;
+            }
+            const timeInput = timeInputRaw;
             const date = e.target.dataset.date;
             const projectId = parseInt(e.target.dataset.projectId);
             const taskId = parseInt(e.target.dataset.taskId);
@@ -6287,6 +6570,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 }
             });
             refreshExportClientDropdown();
+            // Attach typeahead combobox for easier searching
+            attachTypeahead('client');
         }
 
         async function loadProjectsForClient(clientId) {
@@ -6348,6 +6633,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     updateTaskSelect();
                 }
             });
+            attachTypeahead('project');
         }
 
         function updateTaskSelect(projectId = null) {
@@ -6360,6 +6646,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 option.textContent = task.TaskName;
                 select.appendChild(option);
             });
+            attachTypeahead('task');
         }
 
         function escapeCsvField(value) {
@@ -6549,6 +6836,95 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
 
             return entries;
+        }
+
+        // Advanced CSV parser that returns headers and rows (preserves raw values)
+        function advancedParseCSV(csvText) {
+            const lines = csvText.split('\n').filter(line => line.trim());
+            if (lines.length === 0) throw new Error('CSV file is empty');
+            const splitLine = (line) => {
+                const values = [];
+                let current = '';
+                let inQuotes = false;
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        values.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                values.push(current.trim());
+                return values;
+            };
+
+            const headers = splitLine(lines[0]).map(h => String(h || '').trim());
+            const rows = [];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line.trim()) continue;
+                rows.push(splitLine(line));
+            }
+            return { headers, rows };
+        }
+
+        function detectDefaultMapping(headers) {
+            const map = {};
+            headers.forEach((h, idx) => {
+                const key = String(h || '').toLowerCase();
+                if (key.includes('date')) map[idx] = 'date';
+                else if (key.includes('client')) map[idx] = 'clientName';
+                else if (key.includes('project')) map[idx] = 'projectName';
+                else if (key.includes('task')) map[idx] = 'taskName';
+                else if (key.includes('time') || key.includes('hours') || key.includes('duration')) map[idx] = 'time';
+                else if (key.includes('note') || key.includes('desc')) map[idx] = 'notes';
+                else map[idx] = 'ignore';
+            });
+            return map;
+        }
+
+        function mapRowsWithMapping(headers, rows, mapping) {
+            const mapped = [];
+            rows.forEach((r) => {
+                const entry = { date: '', clientName: '', projectName: '', taskName: '', time: '', notes: '' };
+                for (let i = 0; i < r.length; i++) {
+                    const m = mapping[i] || 'ignore';
+                    if (m === 'ignore') continue;
+                    const val = r[i] || '';
+                    if (m === 'date') entry.date = val;
+                    if (m === 'clientName') entry.clientName = val;
+                    if (m === 'projectName') entry.projectName = val;
+                    if (m === 'taskName') entry.taskName = val;
+                    if (m === 'time') entry.time = val;
+                    if (m === 'notes') entry.notes = val;
+                }
+                mapped.push(entry);
+            });
+            return mapped;
+        }
+
+        function loadCsvMappingPresetsSelect() {
+            const sel = document.getElementById('csv-load-mapping');
+            sel.innerHTML = '';
+            const raw = localStorage.getItem('timelive_csv_mapping_presets');
+            let parsed = {};
+            try { parsed = raw ? JSON.parse(raw) : {}; } catch (e) { parsed = {}; }
+            const keys = Object.keys(parsed || {});
+            sel.appendChild(new Option('Load preset', ''));
+            keys.forEach(k => sel.appendChild(new Option(k, k)));
+        }
+
+        function saveCsvMappingPreset(name, mappingObj) {
+            if (!name) return;
+            let raw = localStorage.getItem('timelive_csv_mapping_presets');
+            let parsed = {};
+            try { parsed = raw ? JSON.parse(raw) : {}; } catch (e) { parsed = {}; }
+            parsed[name] = mappingObj;
+            localStorage.setItem('timelive_csv_mapping_presets', JSON.stringify(parsed));
+            loadCsvMappingPresetsSelect();
         }
 
         async function findClientByName(clientName) {
