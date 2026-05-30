@@ -4895,74 +4895,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return getSessionData('clients');
         }
 
-        // --- Typeahead combobox helper (simple fuzzy match + debounce) ---
-        function attachTypeahead(selectId) {
-            const select = document.getElementById(selectId);
-            if (!select) return;
-            // Avoid attaching twice
-            if (document.getElementById(selectId + '-typeahead')) return;
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.id = selectId + '-typeahead';
-            input.placeholder = select.options[0] ? select.options[0].textContent : '';
-            input.style.width = '100%';
-            input.style.boxSizing = 'border-box';
-            input.style.padding = '6px';
-            select.parentNode.insertBefore(input, select);
-
-            const list = document.createElement('div');
-            list.style.position = 'relative';
-            list.style.zIndex = '60';
-            select.parentNode.insertBefore(list, select.nextSibling);
-
-            let timeout = null;
-            const fuzzy = (s, q) => {
-                s = String(s || '').toLowerCase(); q = String(q || '').toLowerCase();
-                if (!q) return true;
-                if (s.includes(q)) return true;
-                const parts = q.split(/\s+/).filter(Boolean);
-                return parts.every(p => s.includes(p));
-            };
-
-            const showMatches = (q) => {
-                list.innerHTML = '';
-                const matches = [];
-                for (let i = 0; i < select.options.length; i++) {
-                    const opt = select.options[i];
-                    if (!opt.value) continue;
-                    if (fuzzy(opt.textContent, q)) matches.push(opt);
-                }
-                matches.slice(0, 12).forEach(opt => {
-                    const item = document.createElement('div');
-                    item.textContent = opt.textContent;
-                    item.style.padding = '6px';
-                    item.style.border = '1px solid #eee';
-                    item.style.cursor = 'pointer';
-                    item.addEventListener('click', () => {
-                        select.value = opt.value;
-                        const ev = new Event('change');
-                        select.dispatchEvent(ev);
-                        input.value = opt.textContent;
-                        list.innerHTML = '';
-                    });
-                    list.appendChild(item);
-                });
-            };
-
-            input.addEventListener('input', (e) => {
-                const q = e.target.value.trim();
-                clearTimeout(timeout);
-                timeout = setTimeout(() => showMatches(q), 200);
-            });
-
-            // When select changes programmatically, update input
-            select.addEventListener('change', () => {
-                const opt = select.options[select.selectedIndex];
-                input.value = opt ? opt.textContent : '';
-            });
-        }
-
         // --- Time rules and rounding ---
         function getTimeRules() {
             const raw = localStorage.getItem('timelive_time_rules');
@@ -6570,8 +6502,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 }
             });
             refreshExportClientDropdown();
-            // Attach typeahead combobox for easier searching
-            attachTypeahead('client');
         }
 
         async function loadProjectsForClient(clientId) {
@@ -6633,7 +6563,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     updateTaskSelect();
                 }
             });
-            attachTypeahead('project');
         }
 
         function updateTaskSelect(projectId = null) {
@@ -6646,7 +6575,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 option.textContent = task.TaskName;
                 select.appendChild(option);
             });
-            attachTypeahead('task');
         }
 
         function escapeCsvField(value) {
