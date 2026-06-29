@@ -1452,18 +1452,22 @@
         }
 
         .timesheet-grid .day-cell::after {
-            content: 'Double-click or long-press to edit details';
+            content: attr(data-tip);
             position: absolute;
             bottom: 100%;
             left: 50%;
             transform: translateX(-50%);
             background: var(--cell-tooltip-bg);
             color: var(--cell-tooltip-fg);
-            padding: 4px 8px;
-            border-radius: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
             border: var(--border-w) solid var(--cell-tooltip-border);
-            font-size: 11px;
-            white-space: nowrap;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            max-width: 420px;
+            min-width: 160px;
+            word-break: break-word;
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.2s;
@@ -1475,15 +1479,17 @@
             border-radius: 4px;
             border-width: 0;
         }
-        
-        @media (hover: none) and (pointer: coarse) {
-            .timesheet-grid .day-cell::after {
-                content: 'Double-tap or long-press to edit details';
-            }
-        }
 
         .timesheet-grid .day-cell:hover::after {
             opacity: 1;
+        }
+
+        .timesheet-grid .day-cell.no-desc-warning > input {
+            box-shadow: inset 0 -2px 0 #f59e0b;
+        }
+
+        [data-theme="classic"] .timesheet-grid .day-cell.no-desc-warning > input {
+            box-shadow: inset 0 -2px 0 #d97706;
         }
 
         .timesheet-grid .day-cell {
@@ -2320,6 +2326,11 @@
             <details id="week-summary-details" class="week-summary-details no-print">
                 <summary class="week-summary-summary">Week summary (by client / project)</summary>
                 <div id="week-summary-body" class="week-summary-body"></div>
+            </details>
+
+            <details id="month-summary-details" class="week-summary-details no-print">
+                <summary class="week-summary-summary">Monthly summary (by client / project)</summary>
+                <div id="month-summary-body" class="week-summary-body"><p style="margin:0;color:#666;font-size:13px;">Open to load.</p></div>
             </details>
 
             <div class="timesheet-grid-container">
@@ -3321,6 +3332,63 @@
             `;
         }
 
+        let _monthSummaryCache = null;
+
+        async function renderMonthlySummary(forceReload) {
+            const body = document.getElementById('month-summary-body');
+            if (!body) return;
+            if (!currentWeekStart || !api || !currentEmployee) {
+                body.innerHTML = '<p style="margin:0;color:#666;font-size:13px;">Sign in first.</p>';
+                return;
+            }
+            const ref = currentWeekStart;
+            const year = ref.getFullYear();
+            const month = ref.getMonth();
+            const monthStart = formatDateForAPI(new Date(year, month, 1));
+            const monthEnd = formatDateForAPI(new Date(year, month + 1, 0));
+            const cacheKey = monthStart;
+            if (!forceReload && _monthSummaryCache && _monthSummaryCache.key === cacheKey) {
+                _buildMonthlySummaryHtml(body, _monthSummaryCache.entries, monthStart, monthEnd);
+                return;
+            }
+            body.innerHTML = '<p style="margin:0;color:#666;font-size:13px;">Loading…</p>';
+            try {
+                const entries = await api.getTimesheetEntries(monthStart, monthEnd, currentEmployee.AccountEmployeeId);
+                _monthSummaryCache = { key: cacheKey, entries: entries || [] };
+                _buildMonthlySummaryHtml(body, _monthSummaryCache.entries, monthStart, monthEnd);
+            } catch (err) {
+                body.innerHTML = `<p style="margin:0;color:#c62828;font-size:13px;">Failed to load: ${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        function _buildMonthlySummaryHtml(body, entries, monthStart, monthEnd) {
+            const byClient = {};
+            const byProject = {};
+            entries.forEach(entry => {
+                const raw = entry.TimeEntryDate || entry.EntryDate;
+                if (!raw) return;
+                const d = formatDateForAPI(new Date(raw));
+                if (d < monthStart || d > monthEnd) return;
+                const h = parseTimeToHours(entry.TotalTime);
+                if (h <= 0) return;
+                const c = entry.ClientName || '—';
+                const p = entry.ProjectName || '—';
+                byClient[c] = (byClient[c] || 0) + h;
+                byProject[p] = (byProject[p] || 0) + h;
+            });
+            const listItems = (obj) => {
+                const keys = Object.keys(obj).sort((a, b) => String(a).localeCompare(String(b)));
+                if (!keys.length) return '<li>—</li>';
+                return keys.map(k => `<li>${escapeHtml(k)}: <strong>${hoursToHHMM(obj[k]) || '00:00'}</strong></li>`).join('');
+            };
+            const totalH = Object.values(byClient).reduce((a, b) => a + b, 0);
+            body.innerHTML = `
+                <div class="week-summary-col"><h4>By client</h4><ul>${listItems(byClient)}</ul></div>
+                <div class="week-summary-col"><h4>By project</h4><ul>${listItems(byProject)}</ul></div>
+                <div class="week-summary-col" style="grid-column:1/-1"><h4>Month total</h4><ul><li>All: <strong>${hoursToHHMM(totalH) || '00:00'}</strong></li></ul></div>
+            `;
+        }
+
         function getMondayWeekStartFromDate(inputDate) {
             const date = new Date(inputDate);
             if (isNaN(date.getTime())) return null;
@@ -3631,19 +3699,18 @@
         async function initializeApp() {
             initThemeFromStorage();
             const credentials = await getStoredCredentials();
-            
-            if (credentials) {
-                loadCredentials(credentials);
-                showTimesheet();
-                // Load initial data which will use session data if available
-                loadInitialData();
-            } else {
-                showAuth();
-            }
 
             setupEventListeners();
 
-            initializeWeekFromUrlOrToday();
+            if (credentials) {
+                loadCredentials(credentials);
+                showTimesheet();
+                initializeWeekFromUrlOrToday(true);
+                await loadInitialData();
+            } else {
+                showAuth();
+                initializeWeekFromUrlOrToday(true);
+            }
         }
 
         function bindEl(id, type, listener) {
@@ -3841,7 +3908,14 @@
                     hideSupportModal();
                 }
             });
-            
+
+            const monthDetails = document.getElementById('month-summary-details');
+            if (monthDetails) {
+                monthDetails.addEventListener('toggle', () => {
+                    if (monthDetails.open) renderMonthlySummary(false);
+                });
+            }
+
             // Handle browser back/forward buttons
             window.addEventListener('popstate', (e) => {
                 const weekFromURL = getWeekFromURL();
@@ -4996,7 +5070,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             window.history.pushState({ week: weekDateStr }, '', newURL);
         }
 
-        function setCurrentWeek(date) {
+        function setCurrentWeek(date, options = {}) {
+            const skipLoad = options.skipLoad === true;
             let base;
             if (date instanceof Date && !isNaN(date.getTime())) {
                 base = new Date(date.getTime());
@@ -5007,20 +5082,29 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const diff = base.getDate() - day + (day === 0 ? -6 : 1);
             base.setDate(diff);
             base.setHours(0, 0, 0, 0);
+            const prevMonth = currentWeekStart ? currentWeekStart.getMonth() : -1;
             currentWeekStart = base;
 
             setWeekInURL(currentWeekStart);
 
             updateWeekDisplay();
-            loadTimesheetData();
+            if (!skipLoad) {
+                loadTimesheetData();
+            }
+
+            if (base.getMonth() !== prevMonth) {
+                const monthDetails = document.getElementById('month-summary-details');
+                if (monthDetails && monthDetails.open) renderMonthlySummary(true);
+            }
         }
 
-        function initializeWeekFromUrlOrToday() {
+        function initializeWeekFromUrlOrToday(skipLoad = false) {
             const weekFromURL = getWeekFromURL();
+            const options = skipLoad ? { skipLoad: true } : {};
             if (weekFromURL) {
-                setCurrentWeek(weekFromURL);
+                setCurrentWeek(weekFromURL, options);
             } else {
-                setCurrentWeek(new Date());
+                setCurrentWeek(new Date(), options);
             }
         }
 
@@ -5342,6 +5426,21 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
 
+        function hasNotSubmittedEntriesInCurrentWeek() {
+            if (!timesheetEntries || !timesheetEntries.length || !currentWeekStart) {
+                return false;
+            }
+            const weekDays = getWeekDays();
+            const weekDateSet = new Set(weekDays.map(day => formatDateForAPI(day)));
+            return timesheetEntries.some(entry => {
+                const raw = entry.TimeEntryDate || entry.EntryDate;
+                if (!raw) return false;
+                if (!weekDateSet.has(formatDateForAPI(new Date(raw)))) return false;
+                const approval = String(entry.ApprovalStatus || '').trim().toLowerCase();
+                return approval === 'not submitted';
+            });
+        }
+
         function updateTimesheetStatus() {
             const statusBadge = document.getElementById('status-badge');
             const submitBtn = document.getElementById('submit-timesheet-btn');
@@ -5353,32 +5452,28 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return;
             }
 
-            // Use TimesheetStatus from API response
             const status = currentPeriod.TimesheetStatus || 'Not Submitted';
             const statusLower = status.toLowerCase();
-
-            // Update status badge based on TimesheetStatus
+            const hasNotSubmittedEntries = hasNotSubmittedEntriesInCurrentWeek();
+            const canSubmit = hasNotSubmittedEntries;
             statusBadge.textContent = status;
-            submitBtn.disabled = true;
+            submitBtn.disabled = !canSubmit;
             
             if (statusLower.includes('approved')) {
                 statusBadge.className = 'status-badge status-approved';
                 submitBtn.style.display = 'none';
             } else if (statusLower.includes('rejected')) {
                 statusBadge.className = 'status-badge status-rejected';
-                submitBtn.style.display = 'inline-block';
-                submitBtn.disabled = false;
+                submitBtn.style.display = canSubmit ? 'inline-block' : 'none';
             } else if (statusLower.includes('approval') || statusLower.includes('pending')) {
                 statusBadge.className = 'status-badge status-in-approval';
                 submitBtn.style.display = 'none';
-            } else if (statusLower.includes('submitted') && !statusLower.includes('not submitted')) {
+            } else if (!canSubmit && statusLower.includes('submitted') && !statusLower.includes('not submitted')) {
                 statusBadge.className = 'status-badge status-submitted';
                 submitBtn.style.display = 'none';
             } else {
-                // Not Submitted or any other status
                 statusBadge.className = 'status-badge status-not-submitted';
-                submitBtn.style.display = 'inline-block';
-                submitBtn.disabled = false;
+                submitBtn.style.display = canSubmit ? 'inline-block' : 'none';
             }
         }
 
@@ -5739,11 +5834,17 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 
                 const hours = dayEntry ? parseTimeToHours(dayEntry.TotalTime) : 0;
                 const timeDisplay = hours > 0 ? hoursToHHMM(hours) : '';
-                
+
                 if (hours) {
                     totalHours += hours;
                 }
-                
+
+                const desc = dayEntry ? (dayEntry.TimeEntryDescription || dayEntry.Description || '') : '';
+                dayCell.dataset.tip = desc || 'Double-click or long-press to edit details';
+                if (hours > 0 && !desc) {
+                    dayCell.classList.add('no-desc-warning');
+                }
+
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.placeholder = '00:00';
