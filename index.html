@@ -1451,37 +1451,52 @@
             position: relative;
         }
 
-        .timesheet-grid .day-cell::after {
-            content: attr(data-tip);
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
+        .cell-tooltip {
+            position: fixed;
+            z-index: 10000;
+            max-width: min(420px, calc(100vw - 16px));
+            padding: 10px 14px;
             background: var(--cell-tooltip-bg);
             color: var(--cell-tooltip-fg);
-            padding: 8px 12px;
             border-radius: 8px;
             border: var(--border-w) solid var(--cell-tooltip-border);
-            font-size: 13px;
-            line-height: 1.5;
-            white-space: pre-wrap;
-            max-width: 420px;
-            min-width: 160px;
-            word-break: break-word;
-            opacity: 0;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
             pointer-events: none;
-            transition: opacity 0.2s;
-            z-index: 1000;
-            margin-bottom: 5px;
+            text-align: left;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.15s ease;
         }
 
-        [data-theme="classic"] .timesheet-grid .day-cell::after {
-            border-radius: 4px;
-            border-width: 0;
-        }
-
-        .timesheet-grid .day-cell:hover::after {
+        .cell-tooltip.visible {
             opacity: 1;
+            visibility: visible;
+        }
+
+        [data-theme="classic"] .cell-tooltip {
+            border-radius: 6px;
+            border-width: 0;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+        }
+
+        .cell-tooltip-header {
+            font-weight: 800;
+            font-size: 12px;
+            line-height: 1.35;
+            margin-bottom: 6px;
+            letter-spacing: 0.01em;
+        }
+
+        .cell-tooltip-body {
+            font-size: 13px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .cell-tooltip-body.is-muted {
+            font-style: italic;
+            opacity: 0.88;
         }
 
         .timesheet-grid .day-cell.no-desc-warning > input {
@@ -2356,6 +2371,7 @@
                 </tbody>
             </table>
             </div>
+            <div id="cell-tooltip" class="cell-tooltip no-print" role="tooltip" aria-hidden="true" hidden></div>
         </div>
 
             <div class="timesheet-footer-actions no-print">
@@ -3733,6 +3749,8 @@
             document.querySelectorAll('.theme-toggle-btn').forEach((btn) => {
                 btn.addEventListener('click', toggleTheme);
             });
+            window.addEventListener('scroll', hideDayCellTooltip, true);
+            window.addEventListener('resize', hideDayCellTooltip);
             bindEl('auth-form', 'submit', handleAuthSubmit);
             bindEl('logout-btn', 'click', handleLogout);
             bindEl('refresh-btn', 'click', loadTimesheetData);
@@ -5675,6 +5693,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
         // Render Functions
         function renderTimesheetGrid() {
+            hideDayCellTooltip();
             const tbody = document.getElementById('timesheet-body');
             tbody.innerHTML = '';
             
@@ -5777,6 +5796,68 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return rows;
         }
 
+        function buildDayCellTooltipContent(day, dayEntry, hours) {
+            const frag = document.createDocumentFragment();
+            const header = document.createElement('div');
+            header.className = 'cell-tooltip-header';
+            const dayLabel = day.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            header.textContent = hours > 0 ? `${dayLabel} · ${hoursToHHMM(hours)}` : dayLabel;
+            frag.appendChild(header);
+
+            const body = document.createElement('div');
+            body.className = 'cell-tooltip-body';
+            const desc = dayEntry ? String(dayEntry.TimeEntryDescription || dayEntry.Description || '').trim() : '';
+            if (desc) {
+                body.textContent = desc;
+            } else if (hours > 0) {
+                body.textContent = 'No description — double-click to edit';
+                body.classList.add('is-muted');
+            } else {
+                body.textContent = 'Double-click or long-press to add time';
+                body.classList.add('is-muted');
+            }
+            frag.appendChild(body);
+            return frag;
+        }
+
+        function positionDayCellTooltip(anchorEl) {
+            const tip = document.getElementById('cell-tooltip');
+            if (!tip || tip.hidden) return;
+            const rect = anchorEl.getBoundingClientRect();
+            const margin = 8;
+            tip.style.left = '0px';
+            tip.style.top = '0px';
+            const tipRect = tip.getBoundingClientRect();
+            let top = rect.bottom + margin;
+            if (top + tipRect.height > window.innerHeight - margin) {
+                top = rect.top - tipRect.height - margin;
+            }
+            let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+            left = Math.max(margin, Math.min(left, window.innerWidth - tipRect.width - margin));
+            top = Math.max(margin, Math.min(top, window.innerHeight - tipRect.height - margin));
+            tip.style.left = `${Math.round(left)}px`;
+            tip.style.top = `${Math.round(top)}px`;
+        }
+
+        function showDayCellTooltip(anchorEl, day, dayEntry, hours) {
+            const tip = document.getElementById('cell-tooltip');
+            if (!tip) return;
+            tip.replaceChildren(buildDayCellTooltipContent(day, dayEntry, hours));
+            tip.hidden = false;
+            tip.classList.add('visible');
+            tip.setAttribute('aria-hidden', 'false');
+            requestAnimationFrame(() => positionDayCellTooltip(anchorEl));
+        }
+
+        function hideDayCellTooltip() {
+            const tip = document.getElementById('cell-tooltip');
+            if (!tip) return;
+            tip.classList.remove('visible');
+            tip.hidden = true;
+            tip.setAttribute('aria-hidden', 'true');
+            tip.replaceChildren();
+        }
+
         function createGroupedTimesheetRow(entries) {
             const row = document.createElement('tr');
             const weekDays = getWeekDays();
@@ -5839,8 +5920,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     totalHours += hours;
                 }
 
-                const desc = dayEntry ? (dayEntry.TimeEntryDescription || dayEntry.Description || '') : '';
-                dayCell.dataset.tip = desc || 'Double-click or long-press to edit details';
+                const desc = dayEntry ? String(dayEntry.TimeEntryDescription || dayEntry.Description || '').trim() : '';
+
                 if (hours > 0 && !desc) {
                     dayCell.classList.add('no-desc-warning');
                 }
@@ -5897,6 +5978,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
                 // Desktop: double-click event
                 input.addEventListener('dblclick', handleEditModal);
+
+                input.addEventListener('mouseenter', () => {
+                    showDayCellTooltip(input, day, dayEntry, hours);
+                });
+                input.addEventListener('mouseleave', hideDayCellTooltip);
                 
                 // Mobile: touch event handlers for double-tap and long-press
                 let lastTapTime = 0;
