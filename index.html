@@ -3713,6 +3713,7 @@
         });
 
         async function initializeApp() {
+            purgeInvalidSessionCacheOnLoad();
             initThemeFromStorage();
             const credentials = await getStoredCredentials();
 
@@ -4826,22 +4827,70 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             showToast('OpenRouter API key removed from this browser.', 'info');
         }
 
+        function isNoDataMessageItem(item) {
+            return item && typeof item === 'object' && !Array.isArray(item) &&
+                String(item.Message || '').trim().toLowerCase() === 'no data';
+        }
+
+        function isNoDataArrayPayload(data) {
+            return Array.isArray(data) && data.length > 0 && data.every(isNoDataMessageItem);
+        }
+
+        function sessionValueContainsNoDataArray(stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (isNoDataArrayPayload(parsed)) return true;
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    return Object.values(parsed).some(isNoDataArrayPayload);
+                }
+                return false;
+            } catch (e) {
+                return false;
+            }
+        }
+
         // Session Data Storage (for projects, tasks, clientId, employeeId)
         function storeSessionData(key, data) {
-            // Ignore undefined/null responses
-            if (data === undefined || data === null) return;
-
-            // Some API responses return { Message: "No Data" } — do not store those
-            if (typeof data === 'object' && data.Message === 'No Data') {
+            const storageKey = `timelive_session_${key}`;
+            if (data === undefined || data === null) {
+                localStorage.removeItem(storageKey);
                 return;
             }
 
-            localStorage.setItem(`timelive_session_${key}`, JSON.stringify(data));
+            if (isNoDataArrayPayload(data)) {
+                localStorage.removeItem(storageKey);
+                return;
+            }
+
+            localStorage.setItem(storageKey, JSON.stringify(data));
+        }
+
+        function purgeInvalidSessionCacheOnLoad() {
+            const prefix = 'timelive_session_';
+            const storageKeys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const storageKey = localStorage.key(i);
+                if (storageKey && storageKey.startsWith(prefix)) {
+                    storageKeys.push(storageKey);
+                }
+            }
+            storageKeys.forEach((storageKey) => {
+                const stored = localStorage.getItem(storageKey);
+                if (stored && sessionValueContainsNoDataArray(stored)) {
+                    localStorage.removeItem(storageKey);
+                }
+            });
         }
 
         function getSessionData(key) {
-            const stored = localStorage.getItem(`timelive_session_${key}`);
-            return stored ? JSON.parse(stored) : null;
+            const storageKey = `timelive_session_${key}`;
+            const stored = localStorage.getItem(storageKey);
+            if (!stored) return null;
+            try {
+                return JSON.parse(stored);
+            } catch (e) {
+                return null;
+            }
         }
 
         function clearSessionData() {
@@ -5198,7 +5247,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 const storedClients = getStoredClients();
                 const storedEmployeeId = getStoredEmployeeId();
                 
-                if (storedClients && storedEmployeeId === employeeId) {
+                if (storedClients && !isNoDataArrayPayload(storedClients) && storedEmployeeId === employeeId) {
                     console.log('Loading clients from session');
                     clients = storedClients;
                     updateClientSelect();
@@ -5207,18 +5256,22 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
                 // Get clients for employee
                 const clientsData = await api.getClients(employeeId);
-                
-                // Handle both array and object responses
-                if (Array.isArray(clientsData)) {
+
+                if (isNoDataArrayPayload(clientsData)) {
+                    clients = [];
+                } else if (Array.isArray(clientsData)) {
                     clients = clientsData;
-                } else if (clientsData) {
+                } else if (clientsData && !isNoDataMessageItem(clientsData)) {
                     clients = [clientsData];
                 } else {
                     clients = [];
                 }
-                
-                // Store clients in session
-                storeClients(clients);
+
+                if (clients.length) {
+                    storeClients(clients);
+                } else {
+                    localStorage.removeItem('timelive_session_clients');
+                }
                 
                 updateClientSelect();
             } catch (error) {
@@ -5286,7 +5339,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     if (storedTasks && storedEmployeeId === employeeId) {
                         // Check if tasks for this project exist in stored tasks
                         const projectTasks = storedTasks[projectId];
-                        if (projectTasks && Array.isArray(projectTasks)) {
+                        if (projectTasks && Array.isArray(projectTasks) && !isNoDataArrayPayload(projectTasks)) {
                             console.log(`Loading tasks for project ${projectId} from session`);
                             tasks = projectTasks;
                             updateTaskSelect(projectId);
@@ -5295,15 +5348,27 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     }
 
                     // Get tasks by project and employee
-                    tasks = await api.getTasksByProject(projectId, employeeId);
-                    
-                    // Store tasks in session (organized by projectId)
-                    if (!storedTasks) {
-                        storeTasks({});
+                    let tasksData = await api.getTasksByProject(projectId, employeeId);
+                    if (isNoDataArrayPayload(tasksData)) {
+                        tasks = [];
+                    } else if (Array.isArray(tasksData)) {
+                        tasks = tasksData;
+                    } else {
+                        tasks = [];
                     }
+
                     const updatedTasks = getStoredTasks() || {};
-                    updatedTasks[projectId] = tasks;
-                    storeTasks(updatedTasks);
+                    if (tasks.length) {
+                        updatedTasks[projectId] = tasks;
+                        storeTasks(updatedTasks);
+                    } else {
+                        delete updatedTasks[projectId];
+                        if (Object.keys(updatedTasks).length) {
+                            storeTasks(updatedTasks);
+                        } else {
+                            localStorage.removeItem('timelive_session_tasks');
+                        }
+                    }
                 } else {
                     tasks = [];
                 }
