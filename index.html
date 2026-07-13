@@ -2902,9 +2902,94 @@
         // In-app support: install the free ntfy app, subscribe to a topic you invent (long random string),
         // paste the same string into SUPPORT_NTFY_TOPIC. Messages POST to ntfy; you get a push on your phone.
         // Optional SUPPORT_NTFY_ACCESS_TOKEN = Bearer token if you locked the topic on ntfy.
+        // Same topic also receives login + once-per-day page-open activity alerts.
         const SUPPORT_NTFY_BASE = 'https://ntfy.sh';
         const SUPPORT_NTFY_TOPIC = 'TimeliveSupport';
         const SUPPORT_NTFY_ACCESS_TOKEN = '';
+        const ACTIVITY_NTFY_DAILY_KEY = 'timelive_ntfy_daily_open';
+
+        function getLocalDateKey(date = new Date()) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + d;
+        }
+
+        async function sendNtfyNotification(title, body, tags) {
+            const topic = typeof SUPPORT_NTFY_TOPIC === 'string' ? SUPPORT_NTFY_TOPIC.trim() : '';
+            if (!topic) return false;
+            const base = (SUPPORT_NTFY_BASE || 'https://ntfy.sh').replace(/\/+$/, '');
+            const url = base + '/' + encodeURIComponent(topic);
+            const headers = { Title: String(title || 'TimeLive').slice(0, 380) };
+            if (tags) headers['Tags'] = tags;
+            const token = typeof SUPPORT_NTFY_ACCESS_TOKEN === 'string' ? SUPPORT_NTFY_ACCESS_TOKEN.trim() : '';
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            try {
+                const res = await fetch(url, { method: 'POST', headers, body: String(body || '') });
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    throw new Error(errText || res.statusText || String(res.status));
+                }
+                return true;
+            } catch (err) {
+                console.warn('TimeLive: ntfy notification failed.', err);
+                return false;
+            }
+        }
+
+        function activityUserLabel(username) {
+            if (username) return String(username);
+            if (currentEmployee && (currentEmployee.Username || currentEmployee.EmployeeName)) {
+                return String(currentEmployee.Username || currentEmployee.EmployeeName);
+            }
+            return '(unknown)';
+        }
+
+        function markDailyOpenNotified(username) {
+            const who = activityUserLabel(username);
+            try {
+                localStorage.setItem(ACTIVITY_NTFY_DAILY_KEY, JSON.stringify({
+                    user: who.toLowerCase(),
+                    date: getLocalDateKey()
+                }));
+            } catch (e) { /* ignore */ }
+        }
+
+        function wasDailyOpenNotifiedToday(username) {
+            const who = activityUserLabel(username).toLowerCase();
+            const today = getLocalDateKey();
+            try {
+                const raw = localStorage.getItem(ACTIVITY_NTFY_DAILY_KEY);
+                if (!raw) return false;
+                const parsed = JSON.parse(raw);
+                return parsed && parsed.user === who && parsed.date === today;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function notifyUserLogin(username) {
+            const who = activityUserLabel(username);
+            const when = new Date().toLocaleString();
+            const ok = await sendNtfyNotification(
+                'TimeLive login',
+                who + ' logged in.\nTime: ' + when,
+                'key,login'
+            );
+            if (ok) markDailyOpenNotified(who);
+        }
+
+        async function notifyDailyPageOpen(username) {
+            const who = activityUserLabel(username);
+            if (wasDailyOpenNotifiedToday(who)) return;
+            const when = new Date().toLocaleString();
+            const ok = await sendNtfyNotification(
+                'TimeLive opened',
+                who + ' opened TimeLive today.\nTime: ' + when,
+                'eyes,calendar'
+            );
+            if (ok) markDailyOpenNotified(who);
+        }
 
         function showToast(message, type = 'info', durationMs = 5200) {
             const stack = document.getElementById('toast-stack');
@@ -3724,6 +3809,7 @@
                 showTimesheet();
                 initializeWeekFromUrlOrToday(true);
                 await loadInitialData();
+                notifyDailyPageOpen(credentials.username).catch(() => {});
             } else {
                 showAuth();
                 initializeWeekFromUrlOrToday(true);
@@ -3970,6 +4056,7 @@
                 await loadInitialData();
                 updateUsernameDisplay();
                 initializeWeekFromUrlOrToday();
+                notifyUserLogin(username).catch(() => {});
             } catch (error) {
                 alert('Authentication failed: ' + error.message);
                 console.error('Auth error:', error);
@@ -6415,23 +6502,14 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             payload += message;
             if (reply) payload += '\n\n—\nReply contact: ' + reply;
             payload += '\n\n—\nApp user: ' + who;
-            const base = (SUPPORT_NTFY_BASE || 'https://ntfy.sh').replace(/\/+$/, '');
-            const url = base + '/' + encodeURIComponent(topic);
-            const title = (subject || 'TimeLive').slice(0, 380);
-            const headers = { Title: title };
-            const token = typeof SUPPORT_NTFY_ACCESS_TOKEN === 'string' ? SUPPORT_NTFY_ACCESS_TOKEN.trim() : '';
-            if (token) headers['Authorization'] = 'Bearer ' + token;
             const sendBtn = document.getElementById('send-support-btn');
             if (sendBtn) {
                 sendBtn.disabled = true;
                 sendBtn.textContent = 'Sending…';
             }
             try {
-                const res = await fetch(url, { method: 'POST', headers, body: payload });
-                if (!res.ok) {
-                    const errText = await res.text().catch(() => '');
-                    throw new Error(errText || res.statusText || String(res.status));
-                }
+                const ok = await sendNtfyNotification(subject || 'TimeLive', payload);
+                if (!ok) throw new Error('ntfy send failed');
                 showToast('Message sent. Thank you.', 'info');
                 hideSupportModal();
             } catch (err) {
