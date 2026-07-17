@@ -6368,35 +6368,27 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 }
             }
             
-            // Set client (read-only since we're editing a specific cell)
+            // Set client
             if (clientId) {
                 document.getElementById('client').value = clientId;
                 // Load projects for this client to ensure dropdown is populated
                 await loadProjectsForClient(clientId);
             }
-            document.getElementById('client').readOnly = true;
-            document.getElementById('client').style.backgroundColor = '#f5f5f5';
             
-            // Set project (read-only since we're editing a specific cell)
+            // Set project
             if (projectTaskInfo.AccountProjectId) {
                 document.getElementById('project').value = projectTaskInfo.AccountProjectId;
                 // Load tasks for the project to ensure dropdown is populated
                 await loadTasks(projectTaskInfo.AccountProjectId);
             }
-            document.getElementById('project').readOnly = true;
-            document.getElementById('project').style.backgroundColor = '#f5f5f5';
             
-            // Set task (read-only since we're editing a specific cell)
+            // Set task
             if (projectTaskInfo.AccountProjectTaskId) {
                 document.getElementById('task').value = projectTaskInfo.AccountProjectTaskId;
             }
-            document.getElementById('task').readOnly = true;
-            document.getElementById('task').style.backgroundColor = '#f5f5f5';
             
-            // Set date (read-only)
+            // Set date
             document.getElementById('entry-date').value = dateStr;
-            document.getElementById('entry-date').readOnly = true;
-            document.getElementById('entry-date').style.backgroundColor = '#f5f5f5';
             
             if (entry) {
                 title.textContent = 'Edit Entry';
