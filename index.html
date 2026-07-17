@@ -1651,6 +1651,26 @@
             margin-top: 14px;
         }
 
+        .entry-date-lock-hint {
+            display: block;
+            margin-top: 6px;
+            color: #666;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .entry-form-error {
+            background: #ffebee;
+            color: var(--negative);
+            border: 1px solid var(--negative);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.35;
+        }
+
         /* Loading and Error States */
         .loading {
             text-align: center;
@@ -2522,6 +2542,7 @@
                     <div class="form-group">
                         <label for="entry-date">Date</label>
                         <input type="date" id="entry-date" name="date" required>
+                        <small id="entry-date-lock-hint" class="entry-date-lock-hint" hidden>To change the date, keep this entry and add another entry with the new date.</small>
                     </div>
                     <div class="form-group">
                         <label for="hours">Time (HH:MM)</label>
@@ -2551,6 +2572,7 @@
                         <button type="button" class="btn btn-delete" id="delete-entry-btn" style="display: none;">Delete</button>
                         <button type="submit" class="btn btn-primary">Save</button>
                     </div>
+                    <div id="entry-form-error" class="entry-form-error" hidden></div>
                 </form>
             </div>
         </div>
@@ -2688,6 +2710,23 @@
                     'Content-Type': 'application/json'
                 };
             }
+
+            getApiErrorMessage(payload) {
+                if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+                    return '';
+                }
+                const message = String(payload.message || payload.Message || '').trim();
+                if (!message || message.toLowerCase() === 'no data') {
+                    return '';
+                }
+                const hasErrorShape =
+                    payload.id !== undefined ||
+                    payload.Result === null ||
+                    payload.StatusCode !== undefined ||
+                    payload.Data !== undefined;
+                return hasErrorShape ? message : '';
+            }
+
             async request(endpoint, options = {}) {
                 const url = `${this.baseUrl}${endpoint}`;
                 const config = {
@@ -2711,10 +2750,21 @@
 
                     if (!response.ok) {
                         const errorText = await response.text();
-                        throw new Error(`API Error: ${response.status} - ${errorText}`);
+                        let errorMessage = errorText;
+                        try {
+                            const errorPayload = JSON.parse(errorText);
+                            errorMessage = this.getApiErrorMessage(errorPayload) || errorText;
+                        } catch (e) {
+                            // Response was not JSON; keep the original body.
+                        }
+                        throw new Error(errorMessage || `API Error: ${response.status}`);
                     }
 
                     const data = await response.json();
+                    const apiErrorMessage = this.getApiErrorMessage(data);
+                    if (apiErrorMessage) {
+                        throw new Error(apiErrorMessage);
+                    }
                     return data;
                 } catch (error) {
                     console.error('API Request Error:', url, error);
@@ -5720,6 +5770,30 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return `${year}-${month}-${day}`;
         }
 
+        function isDateInCurrentWeek(dateStr) {
+            if (!dateStr || !currentWeekStart) return false;
+            const weekStart = formatDateForAPI(currentWeekStart);
+            const weekEndDate = new Date(currentWeekStart);
+            weekEndDate.setDate(weekEndDate.getDate() + 6);
+            const weekEnd = formatDateForAPI(weekEndDate);
+            return dateStr >= weekStart && dateStr <= weekEnd;
+        }
+
+        function getEntryFormErrorEl() {
+            return document.getElementById('entry-form-error');
+        }
+
+        function showEntryFormError(message) {
+            const el = getEntryFormErrorEl();
+            if (!el) return;
+            el.textContent = message || '';
+            el.hidden = !message;
+        }
+
+        function clearEntryFormError() {
+            showEntryFormError('');
+        }
+
         function parseTimeToHours(timeString) {
             if (!timeString) return 0;
             if (timeString.includes('T')) {
@@ -6281,6 +6355,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             document.getElementById('task').style.backgroundColor = '';
             document.getElementById('entry-date').readOnly = false;
             document.getElementById('entry-date').style.backgroundColor = '';
+            const dateLockHint = document.getElementById('entry-date-lock-hint');
+            if (dateLockHint) dateLockHint.hidden = true;
             
             // Load clients if not already loaded
             if (clients.length === 0) {
@@ -6291,6 +6367,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (favGroup) favGroup.style.display = '';
             populateEntryFavoritesSelect();
             clearNotesAiSuggestions();
+            clearEntryFormError();
             
             if (entry) {
                 title.textContent = 'Edit Timesheet Entry';
@@ -6358,6 +6435,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const deleteBtn = document.getElementById('delete-entry-btn');
             const favGroup = document.getElementById('entry-favorites-group');
             if (favGroup) favGroup.style.display = 'none';
+            clearEntryFormError();
             
             // Get clientId from projectTaskInfo or find from project
             let clientId = projectTaskInfo.AccountClientId;
@@ -6420,6 +6498,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const fs = document.getElementById('entry-favorite-select');
             if (fs) fs.value = '';
             clearNotesAiSuggestions();
+            clearEntryFormError();
             document.getElementById('entry-form').reset();
             // Re-enable readonly fields
             document.getElementById('client').readOnly = false;
@@ -6430,6 +6509,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             document.getElementById('task').style.backgroundColor = '';
             document.getElementById('entry-date').readOnly = false;
             document.getElementById('entry-date').style.backgroundColor = '';
+            const dateLockHint = document.getElementById('entry-date-lock-hint');
+            if (dateLockHint) dateLockHint.hidden = true;
             // Hide delete button
             document.getElementById('delete-entry-btn').style.display = 'none';
         }
@@ -6567,6 +6648,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
         async function handleEntrySubmit(e) {
             e.preventDefault();
+            clearEntryFormError();
             
             const entryId = document.getElementById('entry-id').value;
             const clientId = parseInt(document.getElementById('client').value);
@@ -6577,20 +6659,33 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const notes = document.getElementById('notes').value;
             
             if (!clientId || !projectId || !taskId || !entryDate || !timeInput) {
-                showToast('Please fill in all required fields with valid values.', 'error');
+                const message = 'Please fill in all required fields with valid values.';
+                showEntryFormError(message);
+                showToast(message, 'error');
+                return;
+            }
+
+            if (!isDateInCurrentWeek(entryDate)) {
+                const message = 'Date differ from period date. Use a date in the current week, or keep this entry and add another entry with the new date.';
+                showEntryFormError(message);
+                showToast(message, 'error', 7000);
                 return;
             }
             
             // Validate hh:mm format
             if (!timeInput.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
-                showToast('Please enter time in HH:MM format (e.g., 01:30).', 'error');
+                const message = 'Please enter time in HH:MM format (e.g., 01:30).';
+                showEntryFormError(message);
+                showToast(message, 'error');
                 return;
             }
             
             const hours = hhmmToHours(timeInput);
             
             if (hours <= 0) {
-                showToast('Time must be greater than 00:00.', 'error');
+                const message = 'Time must be greater than 00:00.';
+                showEntryFormError(message);
+                showToast(message, 'error');
                 return;
             }
             
@@ -6621,7 +6716,9 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 showToast(entryId ? 'Entry updated.' : 'Entry saved.', 'success', 3500);
                 await loadTimesheetData();
             } catch (error) {
-                showToast('Error saving entry: ' + error.message, 'error');
+                const message = error.message || 'Error saving entry.';
+                showEntryFormError(message);
+                showToast('Error saving entry: ' + message, 'error', 8000);
                 console.error('Save error:', error);
             } finally {
                 popAppBusy();
