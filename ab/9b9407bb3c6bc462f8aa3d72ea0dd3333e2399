@@ -1,0 +1,22 @@
+index.html
+  s_51491054dc93be::t_d9d49949c999cf 4464,4539
+  s_51491054dc93be::t_aeafd26bfd0417 4465,4468-4469,4482,4491-4503,4505-4517,4519-4523,4525-4535,4537-4538,4541,4543
+  s_51491054dc93be::t_b3c641fc2cc7fa 4466-4467,4504,4545-4548
+  s_51491054dc93be::t_2d0b593d1d4f7c 4470,4524,4536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "ab9b9407bb3c6bc462f8aa3d72ea0dd3333e2399",
+  "prompts": {},
+  "sessions": {
+    "s_51491054dc93be": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0cccd44f-a31f-415f-9ec7-88194e5d6865",
+        "model": "grok-4.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
