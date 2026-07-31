@@ -553,6 +553,35 @@
             box-shadow: var(--brutal-shadow-sm);
         }
 
+        .support-image-preview {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .support-image-preview.hidden {
+            display: none;
+        }
+
+        .support-image-preview img {
+            max-width: 160px;
+            max-height: 120px;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            background: var(--cream-2);
+        }
+
+        .support-image-hint {
+            color: #666;
+            font-size: 12px;
+            display: block;
+            margin-top: 6px;
+        }
+
         /* Week Navigation (legacy class; bottom toolbar uses -after-entries overrides) */
         .week-navigation {
             display: flex;
@@ -2455,6 +2484,15 @@
                         <label for="support-reply">Reply contact <span style="font-weight:400;color:#888">(optional)</span></label>
                         <input type="text" id="support-reply" name="support-reply" maxlength="200" autocomplete="off" placeholder="How to reach you, if you want a reply">
                     </div>
+                    <div class="form-group">
+                        <label for="support-image">Screenshot / image <span style="font-weight:400;color:#888">(optional)</span></label>
+                        <input type="file" id="support-image" name="support-image" accept="image/*">
+                        <div id="support-image-preview" class="support-image-preview hidden">
+                            <img id="support-image-preview-img" alt="Selected image preview">
+                            <button type="button" class="btn btn-secondary btn-small" id="support-image-clear">Remove</button>
+                        </div>
+                        <small class="support-image-hint">Optional JPG/PNG/WebP/GIF, max 5 MB. Sent with your message via ntfy.</small>
+                    </div>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="cancel-support-btn">Cancel</button>
                         <button type="submit" class="btn btn-primary" id="send-support-btn">Send</button>
@@ -2525,6 +2563,7 @@
                                 <option value="">— Saved rows —</option>
                             </select>
                             <button type="button" id="save-entry-favorite-btn" class="btn btn-secondary btn-small">Save favorite</button>
+                            <button type="button" id="delete-entry-favorite-btn" class="btn btn-secondary btn-small" disabled title="Delete the selected favorite">Delete favorite</button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -2984,25 +3023,119 @@
             return y + '-' + m + '-' + d;
         }
 
-        async function sendNtfyNotification(title, body, tags) {
-            const topic = typeof SUPPORT_NTFY_TOPIC === 'string' ? SUPPORT_NTFY_TOPIC.trim() : '';
-            if (!topic) return false;
+        const SUPPORT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+
+        function clearSupportImageSelection() {
+            const input = document.getElementById('support-image');
+            const preview = document.getElementById('support-image-preview');
+            const img = document.getElementById('support-image-preview-img');
+            if (input) input.value = '';
+            if (img) {
+                if (img.dataset.objectUrl) {
+                    URL.revokeObjectURL(img.dataset.objectUrl);
+                    delete img.dataset.objectUrl;
+                }
+                img.removeAttribute('src');
+            }
+            if (preview) preview.classList.add('hidden');
+        }
+
+        function handleSupportImageChange() {
+            const input = document.getElementById('support-image');
+            const preview = document.getElementById('support-image-preview');
+            const img = document.getElementById('support-image-preview-img');
+            if (!input || !preview || !img) return;
+
+            if (img.dataset.objectUrl) {
+                URL.revokeObjectURL(img.dataset.objectUrl);
+                delete img.dataset.objectUrl;
+            }
+
+            const file = input.files && input.files[0];
+            if (!file) {
+                img.removeAttribute('src');
+                preview.classList.add('hidden');
+                return;
+            }
+            if (!String(file.type || '').startsWith('image/')) {
+                clearSupportImageSelection();
+                showToast('Please choose an image file.', 'error');
+                return;
+            }
+            if (file.size > SUPPORT_IMAGE_MAX_BYTES) {
+                clearSupportImageSelection();
+                showToast('Image must be 5 MB or smaller.', 'error');
+                return;
+            }
+            const objectUrl = URL.createObjectURL(file);
+            img.dataset.objectUrl = objectUrl;
+            img.src = objectUrl;
+            preview.classList.remove('hidden');
+        }
+
+        function buildNtfyPublishUrl(topic, query) {
             const base = (SUPPORT_NTFY_BASE || 'https://ntfy.sh').replace(/\/+$/, '');
-            const url = base + '/' + encodeURIComponent(topic);
-            const headers = { Title: String(title || 'TimeLive').slice(0, 380) };
-            if (tags) headers['Tags'] = tags;
+            const url = new URL(base + '/' + encodeURIComponent(topic));
+            Object.keys(query || {}).forEach((key) => {
+                const value = query[key];
+                if (value == null || value === '') return;
+                url.searchParams.set(key, String(value));
+            });
+            return url.toString();
+        }
+
+        function getNtfyAuthHeaders() {
+            const headers = {};
             const token = typeof SUPPORT_NTFY_ACCESS_TOKEN === 'string' ? SUPPORT_NTFY_ACCESS_TOKEN.trim() : '';
             if (token) headers['Authorization'] = 'Bearer ' + token;
+            return headers;
+        }
+
+        async function sendNtfyNotification(title, body, tags, file) {
+            const topic = typeof SUPPORT_NTFY_TOPIC === 'string' ? SUPPORT_NTFY_TOPIC.trim() : '';
+            if (!topic) return false;
+            const safeTitle = String(title || 'TimeLive').slice(0, 380);
             try {
-                const res = await fetch(url, { method: 'POST', headers, body: String(body || '') });
-                if (!res.ok) {
-                    const errText = await res.text().catch(() => '');
-                    throw new Error(errText || res.statusText || String(res.status));
+                // Text first (POST body keeps unicode/newlines). Avoid putting unicode in headers —
+                // fetch rejects non–Latin-1 header values (e.g. em dash in support payload).
+                const textUrl = buildNtfyPublishUrl(topic, {
+                    title: safeTitle,
+                    tags: tags || undefined
+                });
+                const textRes = await fetch(textUrl, {
+                    method: 'POST',
+                    headers: getNtfyAuthHeaders(),
+                    body: String(body || '')
+                });
+                if (!textRes.ok) {
+                    const errText = await textRes.text().catch(() => '');
+                    throw new Error(errText || textRes.statusText || String(textRes.status));
+                }
+
+                if (file) {
+                    const safeName = String(file.name || 'screenshot.png')
+                        .replace(/[^\w.\-()+ ]+/g, '_')
+                        .slice(0, 120) || 'screenshot.png';
+                    const fileUrl = buildNtfyPublishUrl(topic, {
+                        title: safeTitle,
+                        message: 'Screenshot attached: ' + safeName,
+                        filename: safeName,
+                        tags: tags || undefined
+                    });
+                    const fileRes = await fetch(fileUrl, {
+                        method: 'PUT',
+                        headers: getNtfyAuthHeaders(),
+                        body: file
+                    });
+                    if (!fileRes.ok) {
+                        const errText = await fileRes.text().catch(() => '');
+                        throw new Error(errText || fileRes.statusText || String(fileRes.status));
+                    }
                 }
                 return true;
             } catch (err) {
                 console.warn('TimeLive: ntfy notification failed.', err);
-                return false;
+                throw err;
             }
         }
 
@@ -3040,24 +3173,32 @@
         async function notifyUserLogin(username) {
             const who = activityUserLabel(username);
             const when = new Date().toLocaleString();
-            const ok = await sendNtfyNotification(
-                'TimeLive login',
-                who + ' logged in.\nTime: ' + when,
-                'key,login'
-            );
-            if (ok) markDailyOpenNotified(who);
+            try {
+                const ok = await sendNtfyNotification(
+                    'TimeLive login',
+                    who + ' logged in.\nTime: ' + when,
+                    'key,login'
+                );
+                if (ok) markDailyOpenNotified(who);
+            } catch (err) {
+                console.warn('TimeLive: login notify failed.', err);
+            }
         }
 
         async function notifyDailyPageOpen(username) {
             const who = activityUserLabel(username);
             if (wasDailyOpenNotifiedToday(who)) return;
             const when = new Date().toLocaleString();
-            const ok = await sendNtfyNotification(
-                'TimeLive opened',
-                who + ' opened TimeLive today.\nTime: ' + when,
-                'eyes,calendar'
-            );
-            if (ok) markDailyOpenNotified(who);
+            try {
+                const ok = await sendNtfyNotification(
+                    'TimeLive opened',
+                    who + ' opened TimeLive today.\nTime: ' + when,
+                    'eyes,calendar'
+                );
+                if (ok) markDailyOpenNotified(who);
+            } catch (err) {
+                console.warn('TimeLive: daily open notify failed.', err);
+            }
         }
 
         function showToast(message, type = 'info', durationMs = 5200) {
@@ -3401,7 +3542,14 @@
             localStorage.setItem(ENTRY_FAVORITES_STORAGE_KEY, JSON.stringify(list.slice(0, 20)));
         }
 
-        function populateEntryFavoritesSelect() {
+        function updateDeleteEntryFavoriteButtonState() {
+            const sel = document.getElementById('entry-favorite-select');
+            const btn = document.getElementById('delete-entry-favorite-btn');
+            if (!btn) return;
+            btn.disabled = !sel || sel.value === '';
+        }
+
+        function populateEntryFavoritesSelect(selectedIdx) {
             const sel = document.getElementById('entry-favorite-select');
             if (!sel) return;
             const favs = loadEntryFavorites();
@@ -3412,6 +3560,10 @@
                 opt.textContent = f.label || `Favorite ${idx + 1}`;
                 sel.appendChild(opt);
             });
+            if (selectedIdx != null && selectedIdx >= 0 && selectedIdx < favs.length) {
+                sel.value = String(selectedIdx);
+            }
+            updateDeleteEntryFavoriteButtonState();
         }
 
         async function applyEntryFavoriteByIndex(idx) {
@@ -3445,8 +3597,27 @@
             let favs = loadEntryFavorites().filter(x => `${x.clientId}|${x.projectId}|${x.taskId}` !== key);
             favs.unshift({ clientId, projectId, taskId, label });
             saveEntryFavorites(favs);
-            populateEntryFavoritesSelect();
+            populateEntryFavoritesSelect(0);
             showToast('Favorite saved.', 'success', 3200);
+        }
+
+        function handleDeleteEntryFavoriteClick() {
+            const sel = document.getElementById('entry-favorite-select');
+            if (!sel || sel.value === '') {
+                showToast('Select a favorite to delete.', 'error');
+                return;
+            }
+            const idx = parseInt(sel.value, 10);
+            if (isNaN(idx)) return;
+            const favs = loadEntryFavorites();
+            const fav = favs[idx];
+            if (!fav) return;
+            const label = fav.label || `Favorite ${idx + 1}`;
+            if (!confirm('Delete favorite?\n\n' + label)) return;
+            favs.splice(idx, 1);
+            saveEntryFavorites(favs);
+            populateEntryFavoritesSelect();
+            showToast('Favorite deleted.', 'info', 3200);
         }
 
         function getCurrentWeekGrandTotalHours() {
@@ -3938,6 +4109,8 @@
             bindEl('close-support-modal', 'click', hideSupportModal);
             bindEl('cancel-support-btn', 'click', hideSupportModal);
             bindEl('support-message-form', 'submit', handleSupportFormSubmit);
+            bindEl('support-image', 'change', handleSupportImageChange);
+            bindEl('support-image-clear', 'click', clearSupportImageSelection);
             bindEl('ai-settings-btn', 'click', showAiSettingsModal);
             bindEl('close-ai-settings-modal', 'click', hideAiSettingsModal);
             bindEl('cancel-ai-settings-btn', 'click', hideAiSettingsModal);
@@ -4000,14 +4173,15 @@
             bindEl('copy-from-week-btn', 'click', copySelectedWeekToCurrent);
             bindEl('print-week-btn', 'click', () => window.print());
             bindEl('save-entry-favorite-btn', 'click', handleSaveEntryFavoriteClick);
+            bindEl('delete-entry-favorite-btn', 'click', handleDeleteEntryFavoriteClick);
             bindEl('entry-favorite-select', 'change', async (e) => {
+                updateDeleteEntryFavoriteButtonState();
                 const v = e.target.value;
                 if (v === '') return;
                 const idx = parseInt(v, 10);
                 if (!isNaN(idx)) {
                     await applyEntryFavoriteByIndex(idx);
                 }
-                e.target.value = '';
             });
             bindEl('save-week-template-btn', 'click', handleSaveWeekTemplateClick);
             bindEl('apply-week-template-btn', 'click', handleApplyWeekTemplateClick);
@@ -6623,6 +6797,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (modal) modal.classList.add('hidden');
             const form = document.getElementById('support-message-form');
             if (form) form.reset();
+            clearSupportImageSelection();
             const sendBtn = document.getElementById('send-support-btn');
             if (sendBtn) {
                 sendBtn.disabled = false;
@@ -6641,12 +6816,24 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const subjectEl = document.getElementById('support-subject');
             const bodyEl = document.getElementById('support-body');
             const replyEl = document.getElementById('support-reply');
+            const imageEl = document.getElementById('support-image');
             const subject = subjectEl ? subjectEl.value.trim() : '';
             const message = bodyEl ? bodyEl.value.trim() : '';
             const reply = replyEl ? replyEl.value.trim() : '';
+            const imageFile = imageEl && imageEl.files && imageEl.files[0] ? imageEl.files[0] : null;
             if (!message) {
                 showToast('Please enter a message.', 'error');
                 return;
+            }
+            if (imageFile) {
+                if (!String(imageFile.type || '').startsWith('image/')) {
+                    showToast('Please choose an image file.', 'error');
+                    return;
+                }
+                if (imageFile.size > SUPPORT_IMAGE_MAX_BYTES) {
+                    showToast('Image must be 5 MB or smaller.', 'error');
+                    return;
+                }
             }
             const who = currentEmployee && (currentEmployee.Username || currentEmployee.EmployeeName)
                 ? String(currentEmployee.Username || currentEmployee.EmployeeName)
@@ -6656,19 +6843,26 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             payload += message;
             if (reply) payload += '\n\n—\nReply contact: ' + reply;
             payload += '\n\n—\nApp user: ' + who;
+            if (imageFile) payload += '\nAttachment: ' + (imageFile.name || 'image');
             const sendBtn = document.getElementById('send-support-btn');
             if (sendBtn) {
                 sendBtn.disabled = true;
                 sendBtn.textContent = 'Sending…';
             }
             try {
-                const ok = await sendNtfyNotification(subject || 'TimeLive', payload);
-                if (!ok) throw new Error('ntfy send failed');
-                showToast('Message sent. Thank you.', 'info');
+                await sendNtfyNotification(subject || 'TimeLive', payload, null, imageFile);
+                showToast(imageFile ? 'Message and image sent. Thank you.' : 'Message sent. Thank you.', 'info');
                 hideSupportModal();
             } catch (err) {
                 console.error(err);
-                showToast('Could not send. Check network or ntfy topic settings.', 'error');
+                const detail = err && err.message ? String(err.message).slice(0, 180) : '';
+                showToast(
+                    detail
+                        ? ('Could not send support message: ' + detail)
+                        : 'Could not send. Check network or ntfy topic settings.',
+                    'error',
+                    8000
+                );
                 if (sendBtn) {
                     sendBtn.disabled = false;
                     sendBtn.textContent = 'Send';
