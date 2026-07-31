@@ -519,6 +519,7 @@
         }
 
         .btn-support {
+            position: relative;
             background: var(--yellow);
             color: var(--ink);
             text-decoration: none;
@@ -580,6 +581,102 @@
             font-size: 12px;
             display: block;
             margin-top: 6px;
+        }
+
+        .support-chat-wrap {
+            margin-bottom: 12px;
+        }
+
+        .support-chat-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .support-chat-status-live {
+            color: var(--positive);
+            font-weight: 700;
+        }
+
+        .support-chat {
+            max-height: 260px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            background: var(--cream-2);
+            box-shadow: var(--brutal-shadow-sm);
+        }
+
+        .support-chat-empty {
+            color: #888;
+            font-size: 13px;
+            text-align: center;
+            padding: 18px 8px;
+        }
+
+        .support-chat-msg {
+            max-width: 88%;
+            padding: 8px 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--ink);
+            font-size: 13px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .support-chat-msg.you {
+            align-self: flex-end;
+            background: #e8f5e9;
+        }
+
+        .support-chat-msg.support {
+            align-self: flex-start;
+            background: #fff;
+        }
+
+        .support-chat-meta {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .support-chat-attach {
+            display: inline-block;
+            margin-top: 6px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .support-unread-badge {
+            position: absolute;
+            top: -6px;
+            right: -6px;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 999px;
+            background: var(--negative);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 18px;
+            text-align: center;
+            border: 2px solid var(--ink);
+        }
+
+        .support-unread-badge.hidden {
+            display: none;
         }
 
         /* Week Navigation (legacy class; bottom toolbar uses -after-entries overrides) */
@@ -2344,6 +2441,7 @@
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
+                    <span id="support-unread-badge" class="support-unread-badge hidden" aria-label="Unread support replies">0</span>
                 </button>
                 <button type="button" id="csv-export-btn" class="btn btn-secondary" title="Export uses row selection, client filter, and date range below when set.">Export CSV</button>
                 <select id="export-client-filter" class="header-mini-select no-print" title="Limit export to this client">
@@ -2462,15 +2560,22 @@
             </div>
         </div>
 
-        <!-- Support / feedback (in-app; delivers via ntfy to your phone — no Google Form) -->
+        <!-- Support / feedback (two-way via ntfy: admin topic + per-browser reply inbox) -->
         <div id="support-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="support-modal-title">
-            <div class="modal-content">
+            <div class="modal-content modal-content-wide">
                 <div class="modal-header">
                     <h3 id="support-modal-title">Support &amp; feedback</h3>
                     <button type="button" class="modal-close" id="close-support-modal" aria-label="Close">&times;</button>
                 </div>
-                <p class="support-modal-hint">Send a message to the TimeLive administrator. Nothing on this page shows a personal email or Google account.</p>
+                <p class="support-modal-hint">Chat with the TimeLive administrator. Your messages notify them on ntfy; their replies appear here live (and are synced when you reopen this page, while still in ntfy’s cache — about 12 hours on ntfy.sh). Nothing on this page shows a personal email or Google account.</p>
                 <div id="support-ntfy-banner" class="support-modal-banner hidden" role="status"></div>
+                <div class="support-chat-wrap">
+                    <div class="support-chat-status">
+                        <span id="support-chat-live">Conversation</span>
+                        <button type="button" class="btn btn-secondary btn-small" id="support-clear-chat-btn" title="Clear local chat history">Clear chat</button>
+                    </div>
+                    <div id="support-chat" class="support-chat" aria-live="polite"></div>
+                </div>
                 <form id="support-message-form">
                     <div class="form-group">
                         <label for="support-subject">Subject <span style="font-weight:400;color:#888">(optional)</span></label>
@@ -2478,7 +2583,7 @@
                     </div>
                     <div class="form-group">
                         <label for="support-body">Message</label>
-                        <textarea id="support-body" name="support-body" rows="5" maxlength="4000" required placeholder="Describe the issue or suggestion…"></textarea>
+                        <textarea id="support-body" name="support-body" rows="3" maxlength="4000" required placeholder="Describe the issue or suggestion…"></textarea>
                     </div>
                     <div class="form-group">
                         <label for="support-reply">Reply contact <span style="font-weight:400;color:#888">(optional)</span></label>
@@ -2494,7 +2599,7 @@
                         <small class="support-image-hint">Optional JPG/PNG/WebP/GIF, max 5 MB. Sent with your message via ntfy.</small>
                     </div>
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="cancel-support-btn">Cancel</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-support-btn">Close</button>
                         <button type="submit" class="btn btn-primary" id="send-support-btn">Send</button>
                     </div>
                 </form>
@@ -3011,10 +3116,17 @@
         // paste the same string into SUPPORT_NTFY_TOPIC. Messages POST to ntfy; you get a push on your phone.
         // Optional SUPPORT_NTFY_ACCESS_TOKEN = Bearer token if you locked the topic on ntfy.
         // Same topic also receives login + once-per-day page-open activity alerts.
+        // Two-way: each browser gets a private inbox topic; admin replies by publishing to that topic
+        // (URL is included in every outbound support notification).
         const SUPPORT_NTFY_BASE = 'https://ntfy.sh';
         const SUPPORT_NTFY_TOPIC = 'TimeliveSupport';
         const SUPPORT_NTFY_ACCESS_TOKEN = '';
         const ACTIVITY_NTFY_DAILY_KEY = 'timelive_ntfy_daily_open';
+        const SUPPORT_INBOX_TOPIC_KEY = 'timelive_support_inbox_topic';
+        const SUPPORT_CHAT_HISTORY_KEY = 'timelive_support_chat';
+        const SUPPORT_UNREAD_KEY = 'timelive_support_unread';
+        const SUPPORT_CHAT_MAX = 120;
+        let supportInboxEventSource = null;
 
         function getLocalDateKey(date = new Date()) {
             const y = date.getFullYear();
@@ -3073,9 +3185,12 @@
             preview.classList.remove('hidden');
         }
 
+        function getNtfyBaseUrl() {
+            return (SUPPORT_NTFY_BASE || 'https://ntfy.sh').replace(/\/+$/, '');
+        }
+
         function buildNtfyPublishUrl(topic, query) {
-            const base = (SUPPORT_NTFY_BASE || 'https://ntfy.sh').replace(/\/+$/, '');
-            const url = new URL(base + '/' + encodeURIComponent(topic));
+            const url = new URL(getNtfyBaseUrl() + '/' + encodeURIComponent(topic));
             Object.keys(query || {}).forEach((key) => {
                 const value = query[key];
                 if (value == null || value === '') return;
@@ -3091,48 +3206,394 @@
             return headers;
         }
 
-        async function sendNtfyNotification(title, body, tags, file) {
-            const topic = typeof SUPPORT_NTFY_TOPIC === 'string' ? SUPPORT_NTFY_TOPIC.trim() : '';
-            if (!topic) return false;
-            const safeTitle = String(title || 'TimeLive').slice(0, 380);
+        function getSupportInboxTopic() {
             try {
-                // Text first (POST body keeps unicode/newlines). Avoid putting unicode in headers —
-                // fetch rejects non–Latin-1 header values (e.g. em dash in support payload).
-                const textUrl = buildNtfyPublishUrl(topic, {
-                    title: safeTitle,
-                    tags: tags || undefined
-                });
-                const textRes = await fetch(textUrl, {
-                    method: 'POST',
-                    headers: getNtfyAuthHeaders(),
-                    body: String(body || '')
-                });
-                if (!textRes.ok) {
-                    const errText = await textRes.text().catch(() => '');
-                    throw new Error(errText || textRes.statusText || String(textRes.status));
+                let topic = localStorage.getItem(SUPPORT_INBOX_TOPIC_KEY);
+                if (topic && /^[A-Za-z0-9_-]{8,80}$/.test(topic)) return topic;
+                const bytes = new Uint8Array(12);
+                (window.crypto || window.msCrypto).getRandomValues(bytes);
+                topic = 'tl-inbox-' + Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+                localStorage.setItem(SUPPORT_INBOX_TOPIC_KEY, topic);
+                return topic;
+            } catch (e) {
+                return 'tl-inbox-fallback';
+            }
+        }
+
+        function getSupportInboxUrl() {
+            return getNtfyBaseUrl() + '/' + encodeURIComponent(getSupportInboxTopic());
+        }
+
+        function loadSupportChat() {
+            try {
+                const raw = localStorage.getItem(SUPPORT_CHAT_HISTORY_KEY);
+                const arr = raw ? JSON.parse(raw) : [];
+                return Array.isArray(arr) ? arr : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveSupportChat(list) {
+            try {
+                localStorage.setItem(SUPPORT_CHAT_HISTORY_KEY, JSON.stringify((list || []).slice(-SUPPORT_CHAT_MAX)));
+            } catch (e) { /* ignore quota */ }
+        }
+
+        function getSupportUnreadCount() {
+            const n = parseInt(localStorage.getItem(SUPPORT_UNREAD_KEY) || '0', 10);
+            return isNaN(n) || n < 0 ? 0 : n;
+        }
+
+        function setSupportUnreadCount(n) {
+            const count = Math.max(0, parseInt(n, 10) || 0);
+            try {
+                localStorage.setItem(SUPPORT_UNREAD_KEY, String(count));
+            } catch (e) { /* ignore */ }
+            const badge = document.getElementById('support-unread-badge');
+            if (!badge) return;
+            if (count > 0) {
+                badge.textContent = count > 99 ? '99+' : String(count);
+                badge.classList.remove('hidden');
+            } else {
+                badge.textContent = '0';
+                badge.classList.add('hidden');
+            }
+        }
+
+        function isSupportModalOpen() {
+            const modal = document.getElementById('support-modal');
+            return !!(modal && !modal.classList.contains('hidden'));
+        }
+
+        function formatSupportChatTime(ts) {
+            try {
+                return new Date(ts).toLocaleString();
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function renderSupportChat() {
+            const el = document.getElementById('support-chat');
+            if (!el) return;
+            const msgs = loadSupportChat();
+            el.innerHTML = '';
+            if (!msgs.length) {
+                const empty = document.createElement('div');
+                empty.className = 'support-chat-empty';
+                empty.textContent = 'No messages yet. Send one below — admin replies show up here.';
+                el.appendChild(empty);
+                return;
+            }
+            msgs.forEach((msg) => {
+                const bubble = document.createElement('div');
+                bubble.className = 'support-chat-msg ' + (msg.role === 'support' ? 'support' : 'you');
+                const meta = document.createElement('span');
+                meta.className = 'support-chat-meta';
+                const who = msg.role === 'support' ? 'Support' : 'You';
+                meta.textContent = who + (msg.at ? ' · ' + formatSupportChatTime(msg.at) : '');
+                bubble.appendChild(meta);
+                if (msg.subject) {
+                    const subj = document.createElement('div');
+                    subj.style.fontWeight = '700';
+                    subj.textContent = msg.subject;
+                    bubble.appendChild(subj);
+                }
+                const body = document.createElement('div');
+                body.textContent = msg.text || '';
+                bubble.appendChild(body);
+                if (msg.hasImage) {
+                    const note = document.createElement('div');
+                    note.className = 'support-chat-attach';
+                    note.textContent = 'Image attached';
+                    bubble.appendChild(note);
+                }
+                if (msg.attachmentUrl) {
+                    const link = document.createElement('a');
+                    link.className = 'support-chat-attach';
+                    link.href = msg.attachmentUrl;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = 'Open attachment';
+                    bubble.appendChild(link);
+                }
+                el.appendChild(bubble);
+            });
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function upsertSupportChatMessage(msg) {
+            if (!msg || !msg.id) return false;
+            const list = loadSupportChat();
+            if (list.some((m) => m.id === msg.id)) return false;
+            list.push(msg);
+            list.sort((a, b) => (a.at || 0) - (b.at || 0));
+            saveSupportChat(list);
+            renderSupportChat();
+            return true;
+        }
+
+        function appendLocalSupportChatMessage({ text, subject, hasImage }) {
+            upsertSupportChatMessage({
+                id: 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+                role: 'you',
+                text: text || '',
+                subject: subject || '',
+                hasImage: !!hasImage,
+                at: Date.now()
+            });
+        }
+
+        function supportReplyHasFromUserTag(tags) {
+            if (!tags) return false;
+            const list = Array.isArray(tags)
+                ? tags.map((t) => String(t).trim())
+                : String(tags).split(',').map((t) => t.trim());
+            return list.includes('from_user');
+        }
+
+        function handleIncomingSupportReply(data, options) {
+            if (!data || (data.event && data.event !== 'message')) return false;
+            const text = String(data.message || '').trim();
+            const attachmentUrl = data.attachment && data.attachment.url ? String(data.attachment.url) : '';
+            if (!text && !attachmentUrl) return false;
+            // Ignore echoes tagged as coming from this app user.
+            if (supportReplyHasFromUserTag(data.tags)) return false;
+
+            const added = upsertSupportChatMessage({
+                id: String(data.id || ('ntfy-' + Date.now())),
+                role: 'support',
+                text: text || '(attachment)',
+                subject: data.title ? String(data.title) : '',
+                attachmentUrl,
+                at: data.time ? Number(data.time) * 1000 : Date.now()
+            });
+            if (!added) return false;
+
+            const notify = !options || options.notify !== false;
+            if (!notify) return true;
+
+            if (isSupportModalOpen()) {
+                setSupportUnreadCount(0);
+            } else {
+                setSupportUnreadCount(getSupportUnreadCount() + 1);
+                showToast('New support reply received.', 'info', 4500);
+            }
+            return true;
+        }
+
+        function getSupportCatchupSinceParam() {
+            // Prefer last real ntfy message id so we only fetch newer replies.
+            const msgs = loadSupportChat().filter((m) => {
+                if (!m || m.role !== 'support' || !m.id) return false;
+                const id = String(m.id);
+                return !id.startsWith('local-') && !id.startsWith('ntfy-');
+            });
+            if (msgs.length) {
+                return String(msgs[msgs.length - 1].id);
+            }
+            // ntfy.sh caches ~12h; "all" returns every still-cached message.
+            return 'all';
+        }
+
+        let supportInboxPollInFlight = null;
+
+        async function pollSupportInboxRecent(options) {
+            const opts = options || {};
+            const notifyNew = !!opts.notifyNew;
+            const topic = getSupportInboxTopic();
+            if (!topic) return 0;
+
+            if (supportInboxPollInFlight) {
+                try { return await supportInboxPollInFlight; } catch (e) { return 0; }
+            }
+
+            supportInboxPollInFlight = (async () => {
+                const since = getSupportCatchupSinceParam();
+                const url = getNtfyBaseUrl() + '/' + encodeURIComponent(topic)
+                    + '/json?poll=1&since=' + encodeURIComponent(since);
+                let addedCount = 0;
+                try {
+                    const res = await fetch(url, { headers: getNtfyAuthHeaders() });
+                    if (!res.ok) {
+                        const errText = await res.text().catch(() => '');
+                        console.warn('TimeLive: support inbox poll HTTP ' + res.status, errText);
+                        // Fallback once with since=all if id-based since fails.
+                        if (since !== 'all') {
+                            const fallbackUrl = getNtfyBaseUrl() + '/' + encodeURIComponent(topic)
+                                + '/json?poll=1&since=all';
+                            const res2 = await fetch(fallbackUrl, { headers: getNtfyAuthHeaders() });
+                            if (!res2.ok) return 0;
+                            const text2 = await res2.text();
+                            text2.split('\n').forEach((line) => {
+                                const trimmed = line.trim();
+                                if (!trimmed) return;
+                                try {
+                                    if (handleIncomingSupportReply(JSON.parse(trimmed), { notify: false })) {
+                                        addedCount += 1;
+                                    }
+                                } catch (e) { /* skip */ }
+                            });
+                        }
+                    } else {
+                        const text = await res.text();
+                        text.split('\n').forEach((line) => {
+                            const trimmed = line.trim();
+                            if (!trimmed) return;
+                            try {
+                                if (handleIncomingSupportReply(JSON.parse(trimmed), { notify: false })) {
+                                    addedCount += 1;
+                                }
+                            } catch (e) { /* skip bad line */ }
+                        });
+                    }
+
+                    if (addedCount > 0) {
+                        if (isSupportModalOpen()) {
+                            setSupportUnreadCount(0);
+                            renderSupportChat();
+                        } else if (notifyNew) {
+                            setSupportUnreadCount(getSupportUnreadCount() + addedCount);
+                            showToast(
+                                addedCount === 1
+                                    ? 'New support reply received.'
+                                    : (addedCount + ' new support replies received.'),
+                                'info',
+                                4500
+                            );
+                        } else {
+                            renderSupportChat();
+                        }
+                    } else if (isSupportModalOpen()) {
+                        renderSupportChat();
+                    }
+                    return addedCount;
+                } catch (err) {
+                    console.warn('TimeLive: support inbox poll failed.', err);
+                    return 0;
+                } finally {
+                    supportInboxPollInFlight = null;
+                }
+            })();
+
+            return supportInboxPollInFlight;
+        }
+
+        function setSupportChatLiveStatus(text, isLive) {
+            const el = document.getElementById('support-chat-live');
+            if (!el) return;
+            el.textContent = text;
+            el.classList.toggle('support-chat-status-live', !!isLive);
+        }
+
+        function stopSupportInboxListener() {
+            if (supportInboxEventSource) {
+                try { supportInboxEventSource.close(); } catch (e) { /* ignore */ }
+                supportInboxEventSource = null;
+            }
+            setSupportChatLiveStatus('Conversation', false);
+        }
+
+        function startSupportInboxListener() {
+            const topic = getSupportInboxTopic();
+            if (!topic) return;
+
+            if (!supportInboxEventSource) {
+                // since=all on connect so a fresh EventSource still gets cached replies
+                // that arrived while this browser/tab was closed.
+                const url = getNtfyBaseUrl() + '/' + encodeURIComponent(topic)
+                    + '/sse?since=' + encodeURIComponent(getSupportCatchupSinceParam());
+                try {
+                    supportInboxEventSource = new EventSource(url);
+                } catch (err) {
+                    console.warn('TimeLive: could not open support inbox stream.', err);
+                    setSupportChatLiveStatus('Conversation (offline)', false);
+                    pollSupportInboxRecent({ notifyNew: true });
+                    return;
                 }
 
-                if (file) {
-                    const safeName = String(file.name || 'screenshot.png')
-                        .replace(/[^\w.\-()+ ]+/g, '_')
-                        .slice(0, 120) || 'screenshot.png';
-                    const fileUrl = buildNtfyPublishUrl(topic, {
-                        title: safeTitle,
-                        message: 'Screenshot attached: ' + safeName,
-                        filename: safeName,
-                        tags: tags || undefined
-                    });
-                    const fileRes = await fetch(fileUrl, {
-                        method: 'PUT',
-                        headers: getNtfyAuthHeaders(),
-                        body: file
-                    });
-                    if (!fileRes.ok) {
-                        const errText = await fileRes.text().catch(() => '');
-                        throw new Error(errText || fileRes.statusText || String(fileRes.status));
-                    }
+                setSupportChatLiveStatus('Listening for replies…', true);
+
+                const onPayload = (ev) => {
+                    try {
+                        handleIncomingSupportReply(JSON.parse(ev.data));
+                    } catch (e) { /* ignore */ }
+                };
+                supportInboxEventSource.addEventListener('message', onPayload);
+                supportInboxEventSource.onmessage = onPayload;
+                supportInboxEventSource.onerror = () => {
+                    setSupportChatLiveStatus('Reconnecting…', false);
+                };
+                supportInboxEventSource.onopen = () => {
+                    setSupportChatLiveStatus('Listening for replies…', true);
+                    // Catch anything missed while the socket was down.
+                    pollSupportInboxRecent({ notifyNew: !isSupportModalOpen() });
+                };
+            }
+
+            // Always poll on start/open — SSE alone misses messages while the window was closed.
+            pollSupportInboxRecent({ notifyNew: !isSupportModalOpen() });
+        }
+
+        function bindSupportInboxVisibilitySync() {
+            const sync = () => {
+                if (document.visibilityState === 'visible') {
+                    startSupportInboxListener();
+                    pollSupportInboxRecent({ notifyNew: !isSupportModalOpen() });
                 }
-                return true;
+            };
+            document.addEventListener('visibilitychange', sync);
+            window.addEventListener('focus', sync);
+        }
+
+        async function sendNtfyToTopic(topic, title, body, tags, file, extraQuery) {
+            if (!topic) return false;
+            const safeTitle = String(title || 'TimeLive').slice(0, 380);
+            const queryBase = Object.assign({
+                title: safeTitle,
+                tags: tags || undefined
+            }, extraQuery || {});
+
+            // Text first (POST body keeps unicode/newlines). Avoid putting unicode in headers —
+            // fetch rejects non–Latin-1 header values (e.g. em dash in support payload).
+            const textUrl = buildNtfyPublishUrl(topic, queryBase);
+            const textRes = await fetch(textUrl, {
+                method: 'POST',
+                headers: getNtfyAuthHeaders(),
+                body: String(body || '')
+            });
+            if (!textRes.ok) {
+                const errText = await textRes.text().catch(() => '');
+                throw new Error(errText || textRes.statusText || String(textRes.status));
+            }
+
+            if (file) {
+                const safeName = String(file.name || 'screenshot.png')
+                    .replace(/[^\w.\-()+ ]+/g, '_')
+                    .slice(0, 120) || 'screenshot.png';
+                const fileUrl = buildNtfyPublishUrl(topic, Object.assign({}, queryBase, {
+                    message: 'Screenshot attached: ' + safeName,
+                    filename: safeName
+                }));
+                const fileRes = await fetch(fileUrl, {
+                    method: 'PUT',
+                    headers: getNtfyAuthHeaders(),
+                    body: file
+                });
+                if (!fileRes.ok) {
+                    const errText = await fileRes.text().catch(() => '');
+                    throw new Error(errText || fileRes.statusText || String(fileRes.status));
+                }
+            }
+            return true;
+        }
+
+        async function sendNtfyNotification(title, body, tags, file, extraQuery) {
+            const topic = typeof SUPPORT_NTFY_TOPIC === 'string' ? SUPPORT_NTFY_TOPIC.trim() : '';
+            if (!topic) return false;
+            try {
+                return await sendNtfyToTopic(topic, title, body, tags, file, extraQuery);
             } catch (err) {
                 console.warn('TimeLive: ntfy notification failed.', err);
                 throw err;
@@ -4111,6 +4572,15 @@
             bindEl('support-message-form', 'submit', handleSupportFormSubmit);
             bindEl('support-image', 'change', handleSupportImageChange);
             bindEl('support-image-clear', 'click', clearSupportImageSelection);
+            bindEl('support-clear-chat-btn', 'click', () => {
+                if (!confirm('Clear your local support chat history on this browser?')) return;
+                saveSupportChat([]);
+                setSupportUnreadCount(0);
+                renderSupportChat();
+                showToast('Support chat cleared.', 'info');
+            });
+            setSupportUnreadCount(getSupportUnreadCount());
+            bindSupportInboxVisibilitySync();
             bindEl('ai-settings-btn', 'click', showAiSettingsModal);
             bindEl('close-ai-settings-modal', 'click', hideAiSettingsModal);
             bindEl('cancel-ai-settings-btn', 'click', hideAiSettingsModal);
@@ -4314,6 +4784,7 @@
         }
 
         function handleLogout() {
+            stopSupportInboxListener();
             clearStoredCredentials();
             api = null;
             showAuth();
@@ -5412,6 +5883,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             document.getElementById('auth-container').classList.add('hidden');
             document.getElementById('timesheet-container').classList.remove('hidden');
             updateUsernameDisplay();
+            setSupportUnreadCount(getSupportUnreadCount());
+            startSupportInboxListener();
         }
 
         async function updateUsernameDisplay() {
@@ -6789,7 +7262,14 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const modal = document.getElementById('support-modal');
             if (!modal) return;
             updateSupportModalState();
+            renderSupportChat();
+            setSupportUnreadCount(0);
             modal.classList.remove('hidden');
+            startSupportInboxListener();
+            pollSupportInboxRecent({ notifyNew: false }).then(() => {
+                setSupportUnreadCount(0);
+                renderSupportChat();
+            });
         }
 
         function hideSupportModal() {
@@ -6838,21 +7318,36 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const who = currentEmployee && (currentEmployee.Username || currentEmployee.EmployeeName)
                 ? String(currentEmployee.Username || currentEmployee.EmployeeName)
                 : '(not signed in)';
+            const inboxTopic = getSupportInboxTopic();
+            const inboxUrl = getSupportInboxUrl();
             let payload = '';
             if (subject) payload += 'Subject: ' + subject + '\n\n';
             payload += message;
             if (reply) payload += '\n\n—\nReply contact: ' + reply;
             payload += '\n\n—\nApp user: ' + who;
             if (imageFile) payload += '\nAttachment: ' + (imageFile.name || 'image');
+            payload += '\n\n—\nTWO-WAY REPLY:\nSubscribe/publish in ntfy to topic:\n' + inboxTopic + '\n' + inboxUrl;
             const sendBtn = document.getElementById('send-support-btn');
             if (sendBtn) {
                 sendBtn.disabled = true;
                 sendBtn.textContent = 'Sending…';
             }
             try {
-                await sendNtfyNotification(subject || 'TimeLive', payload, null, imageFile);
-                showToast(imageFile ? 'Message and image sent. Thank you.' : 'Message sent. Thank you.', 'info');
-                hideSupportModal();
+                await sendNtfyNotification(
+                    subject || 'TimeLive support',
+                    payload,
+                    'speech_balloon',
+                    imageFile,
+                    { click: inboxUrl }
+                );
+                appendLocalSupportChatMessage({
+                    text: message,
+                    subject,
+                    hasImage: !!imageFile
+                });
+                if (bodyEl) bodyEl.value = '';
+                clearSupportImageSelection();
+                showToast(imageFile ? 'Message and image sent.' : 'Message sent.', 'info');
             } catch (err) {
                 console.error(err);
                 const detail = err && err.message ? String(err.message).slice(0, 180) : '';
@@ -6863,10 +7358,12 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     'error',
                     8000
                 );
+            } finally {
                 if (sendBtn) {
                     sendBtn.disabled = false;
                     sendBtn.textContent = 'Send';
                 }
+                updateSupportModalState();
             }
         }
 
