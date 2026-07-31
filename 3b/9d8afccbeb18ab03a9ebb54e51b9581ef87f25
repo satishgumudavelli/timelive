@@ -1,0 +1,30 @@
+index.html
+  s_51491054dc93be::t_907f61ce6598da 6726-6728,6747
+  s_51491054dc93be::t_3f40eba5aa52e2 5805-5806
+  s_51491054dc93be::t_c44c48c390b308 5804,5807-5808
+  s_51491054dc93be::t_bacc01024a9fb2 5814
+  s_51491054dc93be::t_8303c856c153a8 6828
+  s_51491054dc93be::t_e335331554b2ce 2728-2729
+  s_51491054dc93be::t_9d70a74dea06a4 2555,2563
+  s_51491054dc93be::t_0980bb1eafe967 2730-2732
+  s_51491054dc93be::t_f81d0456a28930 4022-4028
+  s_51491054dc93be::t_a2af5bebba6f0f 1674-1679
+  s_51491054dc93be::t_ee93dca0d59bff 5850-5892
+  s_51491054dc93be::t_f956a01413f5d5 6252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.19",
+  "base_commit_sha": "3b9d8afccbeb18ab03a9ebb54e51b9581ef87f25",
+  "prompts": {},
+  "sessions": {
+    "s_51491054dc93be": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0cccd44f-a31f-415f-9ec7-88194e5d6865",
+        "model": "grok-4.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
