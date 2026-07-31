@@ -4461,6 +4461,13 @@
                 const curEndStr = formatDateForAPI(weekEnd);
                 let ok = 0;
                 let fail = 0;
+                const failSamples = [];
+                const pendingCreates = [];
+                const isTransientCopyError = (msg) =>
+                    /connection was closed|unexpectedly|timeout|timed out|\b500\b|internal server error|network|fetch/i.test(String(msg || ''));
+                const isAlreadyExistsError = (msg) =>
+                    /already|exist|duplicate/i.test(String(msg || ''));
+
                 for (const e of toCopy) {
                     const raw = e.TimeEntryDate || e.EntryDate;
                     if (!raw) continue;
@@ -4472,7 +4479,7 @@
                     if (nd < curStartStr || nd > curEndStr) continue;
                     const hours = parseTimeToHours(e.TotalTime);
                     if (hours <= 0) continue;
-                    const entryData = {
+                    pendingCreates.push({
                         AccountProjectId: e.AccountProjectId,
                         AccountProjectTaskId: e.AccountProjectTaskId,
                         EntryDate: nd,
@@ -4481,17 +4488,64 @@
                         Description: e.TimeEntryDescription || e.Description || '',
                         Notes: e.TimeEntryDescription || e.Description || '',
                         AccountEmployeeId: employeeId
-                    };
-                    try {
-                        await api.createTimesheetEntry(entryData);
+                    });
+                }
+
+                async function createCopyEntryWithRetries(entryData, maxAttempts) {
+                    let lastErr = '';
+                    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        try {
+                            await api.createTimesheetEntry(entryData);
+                            return { ok: true, attempts: attempt, err: '' };
+                        } catch (err) {
+                            lastErr = String(err && err.message ? err.message : err);
+                            if (isAlreadyExistsError(lastErr)) {
+                                return { ok: true, attempts: attempt, err: lastErr, existed: true };
+                            }
+                            if (!isTransientCopyError(lastErr) || attempt === maxAttempts) {
+                                return { ok: false, attempts: attempt, err: lastErr };
+                            }
+                            await new Promise((r) => setTimeout(r, 500 * attempt));
+                        }
+                    }
+                    return { ok: false, attempts: maxAttempts, err: lastErr };
+                }
+
+                const failedCreates = [];
+                for (const entryData of pendingCreates) {
+                    const result = await createCopyEntryWithRetries(entryData, 3);
+                    if (result.ok) {
                         ok++;
-                    } catch (err) {
-                        fail++;
-                        console.error(err);
+                    } else {
+                        failedCreates.push(entryData);
                     }
                 }
+
+                // Final sweep: TimeLive sometimes drops creates with connection-closed / 500 under load.
+                if (failedCreates.length) {
+                    await new Promise((r) => setTimeout(r, 800));
+                    const stillFailed = [];
+                    for (const entryData of failedCreates) {
+                        const result = await createCopyEntryWithRetries(entryData, 3);
+                        if (result.ok) {
+                            ok++;
+                        } else {
+                            stillFailed.push(entryData);
+                            if (failSamples.length < 5) {
+                                failSamples.push({
+                                    err: String(result.err || '').slice(0, 160)
+                                });
+                            }
+                        }
+                    }
+                    fail = stillFailed.length;
+                }
+
                 if (ok) showToast(`Copied ${ok} entr${ok === 1 ? 'y' : 'ies'} into this week.`, 'success');
-                if (fail) showToast(`${fail} entr${fail === 1 ? 'y' : 'ies'} failed to copy.`, 'error');
+                if (fail) {
+                    const detail = failSamples[0] && failSamples[0].err ? (' ' + failSamples[0].err) : '';
+                    showToast(`${fail} entr${fail === 1 ? 'y' : 'ies'} failed to copy.` + detail, 'error', 9000);
+                }
                 await loadTimesheetData();
             } finally {
                 popAppBusy();
