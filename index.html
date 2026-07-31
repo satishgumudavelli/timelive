@@ -2717,6 +2717,14 @@
                 };
             }
 
+            getApiSuccessMessage(payload) {
+                if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+                    return '';
+                }
+                const message = String(payload.message || payload.Message || '').trim();
+                return message && /succes/i.test(message) ? message : '';
+            }
+
             getApiErrorMessage(payload) {
                 if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
                     return '';
@@ -2727,7 +2735,7 @@
                 }
                 // TimeLive returns success text misspelled as "Succesfully" (one s) in an
                 // error-shaped envelope — treat /succes/i as non-error (covers Successfully too).
-                if (/succes/i.test(message)) {
+                if (this.getApiSuccessMessage(payload)) {
                     return '';
                 }
                 const hasErrorShape =
@@ -5806,16 +5814,21 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return /succes/i.test(String(message || ''));
         }
 
-        function showEntryFormError(message) {
+        function showEntryFormMessage(message, type = 'error') {
             const el = getEntryFormErrorEl();
             if (!el) return;
             el.textContent = message || '';
             el.hidden = !message;
-            el.classList.toggle('is-success', !!message && isSuccessMessage(message));
+            const asSuccess = !!message && (type === 'success' || isSuccessMessage(message));
+            el.classList.toggle('is-success', asSuccess);
+        }
+
+        function showEntryFormError(message) {
+            showEntryFormMessage(message, isSuccessMessage(message) ? 'success' : 'error');
         }
 
         function clearEntryFormError() {
-            showEntryFormError('');
+            showEntryFormMessage('');
         }
 
         function parseTimeToHours(timeString) {
@@ -6776,14 +6789,27 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             
             pushAppBusy(entryId ? 'Updating entry…' : 'Saving entry…');
             try {
-                if (entryId) {
-                    await api.updateTimesheetEntry(entryId, entryData);
-                } else {
-                    await api.createTimesheetEntry(entryData);
+                const result = entryId
+                    ? await api.updateTimesheetEntry(entryId, entryData)
+                    : await api.createTimesheetEntry(entryData);
+
+                const successMsg = api.getApiSuccessMessage(result)
+                    || (entryId ? 'Time entry Update Succesfully.' : 'Time entry Add Succesfully.');
+
+                // Keep modal open; promote create → edit so a second Save updates the same row.
+                const newId = result && (result.id || result.Id || result.AccountEmployeeTimeEntryId);
+                if (!entryId && newId) {
+                    document.getElementById('entry-id').value = String(newId);
+                    document.getElementById('modal-title').textContent = 'Edit Timesheet Entry';
+                    const deleteBtn = document.getElementById('delete-entry-btn');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = 'inline-block';
+                        deleteBtn.dataset.entryId = String(newId);
+                    }
                 }
-                
-                hideEntryModal();
-                showToast(entryId ? 'Entry updated.' : 'Entry saved.', 'success', 3500);
+
+                showEntryFormMessage(successMsg, 'success');
+                showToast(successMsg, 'success', 3500);
                 await loadTimesheetData();
             } catch (error) {
                 const message = error.message || 'Error saving entry.';
