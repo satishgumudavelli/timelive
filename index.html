@@ -6626,7 +6626,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const status = currentPeriod.TimesheetStatus || 'Not Submitted';
             const statusLower = status.toLowerCase();
             const hasNotSubmittedEntries = hasNotSubmittedEntriesInCurrentWeek();
-            const canSubmit = hasNotSubmittedEntries;
+            const isPeriodSubmitted = statusLower.includes('submitted') && !statusLower.includes('not submitted');
+            const canSubmit = hasNotSubmittedEntries && !isPeriodSubmitted;
             statusBadge.textContent = status;
             submitBtn.disabled = !canSubmit;
             
@@ -6639,7 +6640,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             } else if (statusLower.includes('approval') || statusLower.includes('pending')) {
                 statusBadge.className = 'status-badge status-in-approval';
                 submitBtn.style.display = 'none';
-            } else if (!canSubmit && statusLower.includes('submitted') && !statusLower.includes('not submitted')) {
+            } else if (isPeriodSubmitted) {
                 statusBadge.className = 'status-badge status-submitted';
                 submitBtn.style.display = 'none';
             } else {
@@ -6694,7 +6695,12 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 weekEnd.setDate(weekEnd.getDate() + 6);
                 const startDate = formatDateForAPI(currentWeekStart);
                 const endDate = formatDateForAPI(weekEnd);
-                await loadTimesheetPeriod(startDate, endDate, employeeId);
+                const [entries] = await Promise.all([
+                    api.getTimesheetEntries(startDate, endDate, employeeId),
+                    loadTimesheetPeriod(startDate, endDate, employeeId)
+                ]);
+                timesheetEntries = entries;
+                renderTimesheetGrid();
                 
                 updateTimesheetStatus();
                 showToast('Timesheet submitted successfully.', 'success');
