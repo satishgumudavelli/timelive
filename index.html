@@ -1784,6 +1784,29 @@
             margin-bottom: 8px;
         }
 
+        .desc-quick-edit-field {
+            margin-bottom: 10px;
+        }
+
+        .desc-quick-edit-field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .desc-quick-edit-field input[type="text"] {
+            width: 100%;
+            font-size: 13px;
+        }
+
+        .desc-quick-edit-field small {
+            display: block;
+            margin-top: 4px;
+            color: #666;
+            font-size: 11px;
+        }
+
         .desc-quick-edit textarea {
             width: 100%;
             min-height: 72px;
@@ -2697,7 +2720,12 @@
             </div>
             <div id="cell-tooltip" class="cell-tooltip no-print" role="tooltip" aria-hidden="true" hidden></div>
             <div id="desc-quick-edit" class="desc-quick-edit no-print hidden" role="dialog" aria-labelledby="desc-quick-edit-title" hidden>
-                <div id="desc-quick-edit-title" class="desc-quick-edit-title">Description</div>
+                <div id="desc-quick-edit-title" class="desc-quick-edit-title">Edit entry</div>
+                <div class="desc-quick-edit-field">
+                    <label for="desc-quick-edit-time">Time (HH:MM)</label>
+                    <input type="text" id="desc-quick-edit-time" placeholder="01:30" inputmode="numeric" autocomplete="off" aria-label="Entry time">
+                    <small>HH:MM, or shorthand: 15 → 00:15, 145 → 01:45</small>
+                </div>
                 <textarea id="desc-quick-edit-input" rows="3" placeholder="What did you work on?" aria-label="Entry description"></textarea>
                 <div class="desc-quick-edit-actions">
                     <button type="button" id="desc-quick-edit-cancel" class="btn btn-secondary btn-small">Cancel</button>
@@ -4925,7 +4953,8 @@
             bindEl('submit-timesheet-btn', 'click', handleSubmitTimesheet);
             bindEl('desc-quick-edit-save', 'click', saveDescQuickEdit);
             bindEl('desc-quick-edit-cancel', 'click', closeDescQuickEdit);
-            bindEl('desc-quick-edit-input', 'keydown', (e) => {
+            bindEl('desc-quick-edit-time', 'blur', (e) => applyHoursInputNormalization(e.target));
+            const handleDescQuickEditKeydown = (e) => {
                 if (e.key === 'Escape') {
                     e.preventDefault();
                     closeDescQuickEdit();
@@ -4933,7 +4962,9 @@
                     e.preventDefault();
                     saveDescQuickEdit();
                 }
-            });
+            };
+            bindEl('desc-quick-edit-input', 'keydown', handleDescQuickEditKeydown);
+            bindEl('desc-quick-edit-time', 'keydown', handleDescQuickEditKeydown);
             document.addEventListener('click', (e) => {
                 const pop = document.getElementById('desc-quick-edit');
                 if (!pop || pop.classList.contains('hidden') || !descQuickEditContext) return;
@@ -7170,7 +7201,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (desc) {
                 body.textContent = desc;
             } else if (hours > 0) {
-                body.textContent = 'No description — click ✎ to edit';
+                body.textContent = 'No description — click ✎ for quick edit, double-click for full edit';
                 body.classList.add('is-muted');
             } else {
                 body.textContent = 'Double-click or long-press to add time';
@@ -7251,18 +7282,21 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             closeDescQuickEdit();
             const pop = document.getElementById('desc-quick-edit');
             const textarea = document.getElementById('desc-quick-edit-input');
-            if (!pop || !textarea) return;
+            const timeInput = document.getElementById('desc-quick-edit-time');
+            if (!pop || !textarea || !timeInput) return;
 
             const description = String(dayEntry.TimeEntryDescription || dayEntry.Description || '').trim();
+            const hours = parseTimeToHours(dayEntry.TotalTime);
             textarea.value = description;
+            timeInput.value = hours > 0 ? hoursToHHMM(hours) : '';
             descQuickEditContext = { dayEntry, firstEntry, dayDateStr, hoursInput, dayCell, anchorEl };
 
             pop.classList.remove('hidden');
             pop.hidden = false;
             requestAnimationFrame(() => {
                 positionDescQuickEdit(anchorEl);
-                textarea.focus();
-                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+                timeInput.focus();
+                timeInput.select();
             });
         }
 
@@ -7271,6 +7305,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (!ctx) return;
 
             const textarea = document.getElementById('desc-quick-edit-input');
+            const timeField = document.getElementById('desc-quick-edit-time');
             const description = textarea ? textarea.value.trim() : '';
             const { dayEntry, firstEntry, dayDateStr, hoursInput, dayCell } = ctx;
             const entryId = dayEntry.AccountEmployeeTimeEntryId || dayEntry.Id;
@@ -7279,7 +7314,44 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return;
             }
 
-            const hours = parseTimeToHours(dayEntry.TotalTime);
+            if (timeField) {
+                applyHoursInputNormalization(timeField);
+            }
+            const timeValue = timeField ? timeField.value.trim() : '';
+            if (!timeValue || !timeValue.match(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)) {
+                showToast('Enter a valid time in HH:MM format.', 'error');
+                if (timeField) timeField.focus();
+                return;
+            }
+
+            const hours = hhmmToHours(timeValue);
+            if (hours === 0) {
+                if (!confirm('Time is zero. Delete this entry?')) {
+                    if (timeField) timeField.focus();
+                    return;
+                }
+                closeDescQuickEdit();
+                const restorePayload = entryToRestorePayload(dayEntry);
+                pushAppBusy('Deleting entry…');
+                try {
+                    await api.deleteTimesheetEntry(entryId);
+                    if (restorePayload) {
+                        showUndoToast('Entry deleted.', [restorePayload]);
+                    } else {
+                        showToast('Entry deleted.', 'success', 3000);
+                    }
+                    await loadTimesheetData();
+                } catch (error) {
+                    showToast('Error deleting entry: ' + error.message, 'error');
+                    console.error('Delete error:', error);
+                } finally {
+                    popAppBusy();
+                }
+                return;
+            }
+
+            const previousHours = parseTimeToHours(dayEntry.TotalTime);
+            const timeChanged = Math.abs(previousHours - hours) > 0.001;
             const entryData = {
                 AccountProjectId: firstEntry.AccountProjectId,
                 AccountProjectTaskId: firstEntry.AccountProjectTaskId,
@@ -7299,12 +7371,15 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
             const saveBtn = document.getElementById('desc-quick-edit-save');
             if (saveBtn) saveBtn.disabled = true;
-            pushAppBusy('Saving description…');
+            pushAppBusy('Saving entry…');
             try {
                 await api.updateTimesheetEntry(entryId, entryData);
                 dayEntry.TimeEntryDescription = description;
                 dayEntry.Description = description;
+                dayEntry.TotalTime = timeValue;
+                dayEntry.Hours = hours;
                 if (hoursInput) {
+                    hoursInput.value = timeValue;
                     hoursInput.dataset.description = description;
                 }
                 if (dayCell) {
@@ -7315,10 +7390,13 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     }
                 }
                 closeDescQuickEdit();
-                showToast('Description saved.', 'success', 2000);
+                if (timeChanged) {
+                    await loadTimesheetData();
+                }
+                showToast('Entry saved.', 'success', 2000);
             } catch (error) {
-                showToast('Error saving description: ' + error.message, 'error');
-                console.error('Description save error:', error);
+                showToast('Error saving entry: ' + error.message, 'error');
+                console.error('Quick edit save error:', error);
             } finally {
                 if (saveBtn) saveBtn.disabled = false;
                 popAppBusy();
@@ -7410,16 +7488,14 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                         e.preventDefault();
                         e.stopPropagation();
                     }
-                    if (dayEntry) {
-                        openDescQuickEdit(dayCell, dayEntry, firstEntry, dayDateStr, input, dayCell);
-                    }
+                    openDescQuickEdit(dayCell, dayEntry, firstEntry, dayDateStr, input, dayCell);
                 };
 
                 const handleEditModal = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     if (dayEntry) {
-                        openQuickDescEdit(e);
+                        showCellEditModal(dayEntry, dayDateStr, firstEntry);
                     } else {
                         showCellEditModal(null, dayDateStr, firstEntry);
                     }
@@ -7457,7 +7533,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     input.dataset.description = '';
                 }
 
-                // Desktop: double-click opens quick description edit (existing entry) or add modal (empty cell)
+                // Desktop: double-click opens full entry modal
                 input.addEventListener('dblclick', handleEditModal);
 
                 input.addEventListener('mouseenter', () => {
@@ -7536,8 +7612,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     descBtn.type = 'button';
                     descBtn.className = 'desc-edit-btn no-print';
                     descBtn.textContent = '✎';
-                    descBtn.title = desc ? 'Edit description' : 'Add description';
-                    descBtn.setAttribute('aria-label', desc ? 'Edit description' : 'Add description');
+                    descBtn.title = 'Edit time and description';
+                    descBtn.setAttribute('aria-label', 'Edit time and description');
                     descBtn.addEventListener('click', openQuickDescEdit);
                     cellInner.appendChild(descBtn);
                 }
