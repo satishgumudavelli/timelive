@@ -1,0 +1,7 @@
+.git/
+.wrangler/
+.cursor/
+worker.js
+jira-proxy-worker.js
+wrangler.jsonc
+.assetsignore
