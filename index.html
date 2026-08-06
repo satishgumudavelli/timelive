@@ -1706,12 +1706,102 @@
             opacity: 0.88;
         }
 
-        .timesheet-grid .day-cell.no-desc-warning > input {
+        .timesheet-grid .day-cell.no-desc-warning > input,
+        .timesheet-grid .day-cell.no-desc-warning .day-hours-input {
             box-shadow: inset 0 -2px 0 #f59e0b;
         }
 
-        [data-theme="classic"] .timesheet-grid .day-cell.no-desc-warning > input {
+        [data-theme="classic"] .timesheet-grid .day-cell.no-desc-warning > input,
+        [data-theme="classic"] .timesheet-grid .day-cell.no-desc-warning .day-hours-input {
             box-shadow: inset 0 -2px 0 #d97706;
+        }
+
+        .day-cell-inner {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+        }
+
+        .day-hours-input {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .desc-edit-btn {
+            flex: 0 0 auto;
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--ink);
+            opacity: 0;
+            cursor: pointer;
+            font-size: 11px;
+            line-height: 1;
+            border-radius: 3px;
+        }
+
+        .desc-edit-btn:hover,
+        .desc-edit-btn:focus-visible {
+            background: var(--yellow);
+        }
+
+        .day-cell:hover .desc-edit-btn,
+        .day-cell.no-desc-warning .desc-edit-btn,
+        .desc-edit-btn:focus-visible {
+            opacity: 1;
+        }
+
+        @media (hover: none) {
+            .desc-edit-btn {
+                opacity: 0.75;
+            }
+        }
+
+        .desc-quick-edit {
+            position: fixed;
+            z-index: 10001;
+            width: min(320px, calc(100vw - 24px));
+            padding: 12px 14px;
+            background: var(--cream);
+            color: var(--ink);
+            border-radius: 8px;
+            border: var(--border-w) solid var(--ink);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+            text-align: left;
+        }
+
+        .desc-quick-edit.hidden {
+            display: none;
+        }
+
+        .desc-quick-edit-title {
+            font-weight: 800;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .desc-quick-edit textarea {
+            width: 100%;
+            min-height: 72px;
+            resize: vertical;
+            font-size: 13px;
+            line-height: 1.45;
+            margin-bottom: 10px;
+        }
+
+        .desc-quick-edit-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        [data-theme="classic"] .desc-quick-edit {
+            border-radius: 6px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
         }
 
         .timesheet-grid .day-cell {
@@ -2606,6 +2696,14 @@
             </table>
             </div>
             <div id="cell-tooltip" class="cell-tooltip no-print" role="tooltip" aria-hidden="true" hidden></div>
+            <div id="desc-quick-edit" class="desc-quick-edit no-print hidden" role="dialog" aria-labelledby="desc-quick-edit-title" hidden>
+                <div id="desc-quick-edit-title" class="desc-quick-edit-title">Description</div>
+                <textarea id="desc-quick-edit-input" rows="3" placeholder="What did you work on?" aria-label="Entry description"></textarea>
+                <div class="desc-quick-edit-actions">
+                    <button type="button" id="desc-quick-edit-cancel" class="btn btn-secondary btn-small">Cancel</button>
+                    <button type="button" id="desc-quick-edit-save" class="btn btn-primary btn-small">Save</button>
+                </div>
+            </div>
         </div>
 
             <div class="timesheet-footer-actions no-print">
@@ -3194,6 +3292,7 @@
         let isTimesheetDataLoading = false;
         let appBusyStack = [];
         let timesheetLoadChain = Promise.resolve();
+        let descQuickEditContext = null;
         let csvImportPendingEntries = null;
         const ENTRY_FAVORITES_STORAGE_KEY = 'timelive_entry_favorites';
         const WEEK_TEMPLATES_STORAGE_KEY = 'timelive_week_templates';
@@ -4824,6 +4923,29 @@
                 }
             });
             bindEl('submit-timesheet-btn', 'click', handleSubmitTimesheet);
+            bindEl('desc-quick-edit-save', 'click', saveDescQuickEdit);
+            bindEl('desc-quick-edit-cancel', 'click', closeDescQuickEdit);
+            bindEl('desc-quick-edit-input', 'keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    closeDescQuickEdit();
+                } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    saveDescQuickEdit();
+                }
+            });
+            document.addEventListener('click', (e) => {
+                const pop = document.getElementById('desc-quick-edit');
+                if (!pop || pop.classList.contains('hidden') || !descQuickEditContext) return;
+                if (pop.contains(e.target)) return;
+                if (e.target.closest('.desc-edit-btn')) return;
+                closeDescQuickEdit();
+            });
+            window.addEventListener('resize', () => {
+                if (descQuickEditContext && descQuickEditContext.anchorEl) {
+                    positionDescQuickEdit(descQuickEditContext.anchorEl);
+                }
+            });
             bindEl('csv-export-btn', 'click', exportCurrentWeekToCsv);
             bindEl('csv-import-btn', 'click', () => showCSVImportModal());
             bindEl('close-modal', 'click', hideEntryModal);
@@ -6931,6 +7053,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         // Render Functions
         function renderTimesheetGrid() {
             hideDayCellTooltip();
+            closeDescQuickEdit();
             const tbody = document.getElementById('timesheet-body');
             tbody.innerHTML = '';
             
@@ -7047,7 +7170,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (desc) {
                 body.textContent = desc;
             } else if (hours > 0) {
-                body.textContent = 'No description — double-click to edit';
+                body.textContent = 'No description — click ✎ to edit';
                 body.classList.add('is-muted');
             } else {
                 body.textContent = 'Double-click or long-press to add time';
@@ -7093,6 +7216,113 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             tip.hidden = true;
             tip.setAttribute('aria-hidden', 'true');
             tip.replaceChildren();
+        }
+
+        function positionDescQuickEdit(anchorEl) {
+            const pop = document.getElementById('desc-quick-edit');
+            if (!pop || pop.classList.contains('hidden')) return;
+            const rect = anchorEl.getBoundingClientRect();
+            const margin = 8;
+            pop.style.left = '0px';
+            pop.style.top = '0px';
+            const popRect = pop.getBoundingClientRect();
+            let top = rect.bottom + margin;
+            if (top + popRect.height > window.innerHeight - margin) {
+                top = rect.top - popRect.height - margin;
+            }
+            let left = rect.left + (rect.width / 2) - (popRect.width / 2);
+            left = Math.max(margin, Math.min(left, window.innerWidth - popRect.width - margin));
+            top = Math.max(margin, Math.min(top, window.innerHeight - popRect.height - margin));
+            pop.style.left = `${Math.round(left)}px`;
+            pop.style.top = `${Math.round(top)}px`;
+        }
+
+        function closeDescQuickEdit() {
+            const pop = document.getElementById('desc-quick-edit');
+            if (!pop) return;
+            pop.classList.add('hidden');
+            pop.hidden = true;
+            descQuickEditContext = null;
+        }
+
+        function openDescQuickEdit(anchorEl, dayEntry, firstEntry, dayDateStr, hoursInput, dayCell) {
+            if (!dayEntry) return;
+            hideDayCellTooltip();
+            closeDescQuickEdit();
+            const pop = document.getElementById('desc-quick-edit');
+            const textarea = document.getElementById('desc-quick-edit-input');
+            if (!pop || !textarea) return;
+
+            const description = String(dayEntry.TimeEntryDescription || dayEntry.Description || '').trim();
+            textarea.value = description;
+            descQuickEditContext = { dayEntry, firstEntry, dayDateStr, hoursInput, dayCell, anchorEl };
+
+            pop.classList.remove('hidden');
+            pop.hidden = false;
+            requestAnimationFrame(() => {
+                positionDescQuickEdit(anchorEl);
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+            });
+        }
+
+        async function saveDescQuickEdit() {
+            const ctx = descQuickEditContext;
+            if (!ctx) return;
+
+            const textarea = document.getElementById('desc-quick-edit-input');
+            const description = textarea ? textarea.value.trim() : '';
+            const { dayEntry, firstEntry, dayDateStr, hoursInput, dayCell } = ctx;
+            const entryId = dayEntry.AccountEmployeeTimeEntryId || dayEntry.Id;
+            if (!entryId) {
+                showToast('Cannot save: Entry ID not found.', 'error');
+                return;
+            }
+
+            const hours = parseTimeToHours(dayEntry.TotalTime);
+            const entryData = {
+                AccountProjectId: firstEntry.AccountProjectId,
+                AccountProjectTaskId: firstEntry.AccountProjectTaskId,
+                EntryDate: dayDateStr,
+                TimeEntryDate: dayDateStr,
+                Hours: hours,
+                Description: description,
+                Notes: description,
+                TimeEntryDescription: description
+            };
+
+            if (currentEmployee) {
+                entryData.AccountEmployeeId = currentEmployee.AccountEmployeeId;
+            } else if (dayEntry.AccountEmployeeId) {
+                entryData.AccountEmployeeId = dayEntry.AccountEmployeeId;
+            }
+
+            const saveBtn = document.getElementById('desc-quick-edit-save');
+            if (saveBtn) saveBtn.disabled = true;
+            pushAppBusy('Saving description…');
+            try {
+                await api.updateTimesheetEntry(entryId, entryData);
+                dayEntry.TimeEntryDescription = description;
+                dayEntry.Description = description;
+                if (hoursInput) {
+                    hoursInput.dataset.description = description;
+                }
+                if (dayCell) {
+                    if (hours > 0 && !description) {
+                        dayCell.classList.add('no-desc-warning');
+                    } else {
+                        dayCell.classList.remove('no-desc-warning');
+                    }
+                }
+                closeDescQuickEdit();
+                showToast('Description saved.', 'success', 2000);
+            } catch (error) {
+                showToast('Error saving description: ' + error.message, 'error');
+                console.error('Description save error:', error);
+            } finally {
+                if (saveBtn) saveBtn.disabled = false;
+                popAppBusy();
+            }
         }
 
         function createGroupedTimesheetRow(entries) {
@@ -7163,20 +7393,33 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     dayCell.classList.add('no-desc-warning');
                 }
 
+                const cellInner = document.createElement('div');
+                cellInner.className = 'day-cell-inner';
+
                 const input = document.createElement('input');
                 input.type = 'text';
+                input.className = 'day-hours-input';
                 input.placeholder = '00:00';
                 input.pattern = '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$';
                 input.value = timeDisplay;
                 input.style.textAlign = 'center';
                 input.style.cursor = 'pointer';
                 
-                // Helper function to handle edit modal trigger
+                const openQuickDescEdit = (e) => {
+                    if (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    if (dayEntry) {
+                        openDescQuickEdit(dayCell, dayEntry, firstEntry, dayDateStr, input, dayCell);
+                    }
+                };
+
                 const handleEditModal = (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     if (dayEntry) {
-                        showCellEditModal(dayEntry, dayDateStr, firstEntry);
+                        openQuickDescEdit(e);
                     } else {
                         showCellEditModal(null, dayDateStr, firstEntry);
                     }
@@ -7214,7 +7457,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     input.dataset.description = '';
                 }
 
-                // Desktop: double-click event
+                // Desktop: double-click opens quick description edit (existing entry) or add modal (empty cell)
                 input.addEventListener('dblclick', handleEditModal);
 
                 input.addEventListener('mouseenter', () => {
@@ -7229,7 +7472,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 let longPressTimeout = null;
                 let isInputFocused = false;
                 
-                // Track focus state to avoid interfering with text input
                 input.addEventListener('focus', () => {
                     isInputFocused = true;
                 });
@@ -7241,7 +7483,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 input.addEventListener('touchstart', (e) => {
                     touchStartTime = new Date().getTime();
                     
-                    // Long-press detection (500ms) - only if input is not focused
                     if (!isInputFocused || document.activeElement !== input) {
                         longPressTimeout = setTimeout(() => {
                             e.preventDefault();
@@ -7250,8 +7491,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     }
                 }, { passive: false });
                 
-                input.addEventListener('touchmove', (e) => {
-                    // Cancel long-press if user moves finger
+                input.addEventListener('touchmove', () => {
                     if (longPressTimeout) {
                         clearTimeout(longPressTimeout);
                         longPressTimeout = null;
@@ -7263,16 +7503,13 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     const tapLength = currentTime - lastTapTime;
                     const touchDuration = currentTime - touchStartTime;
                     
-                    // Cancel long-press timeout
                     if (longPressTimeout) {
                         clearTimeout(longPressTimeout);
                         longPressTimeout = null;
                     }
                     
-                    // Double-tap detection (works even when input is focused)
                     if (touchDuration < 300) {
                         if (tapLength < 400 && tapLength > 0 && lastTapTime > 0) {
-                            // Double tap detected
                             e.preventDefault();
                             e.stopPropagation();
                             clearTimeout(tapTimeout);
@@ -7280,7 +7517,6 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                             lastTapTime = 0;
                             return false;
                         } else {
-                            // First tap - wait to see if there's a second tap
                             clearTimeout(tapTimeout);
                             tapTimeout = setTimeout(() => {
                                 lastTapTime = 0;
@@ -7290,11 +7526,23 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     }
                 }, { passive: false });
 
-                // Common event handlers
                 input.addEventListener('change', handleChange);
                 input.addEventListener('blur', handleBlur);
-                
-                dayCell.appendChild(input);
+
+                cellInner.appendChild(input);
+
+                if (dayEntry) {
+                    const descBtn = document.createElement('button');
+                    descBtn.type = 'button';
+                    descBtn.className = 'desc-edit-btn no-print';
+                    descBtn.textContent = '✎';
+                    descBtn.title = desc ? 'Edit description' : 'Add description';
+                    descBtn.setAttribute('aria-label', desc ? 'Edit description' : 'Add description');
+                    descBtn.addEventListener('click', openQuickDescEdit);
+                    cellInner.appendChild(descBtn);
+                }
+
+                dayCell.appendChild(cellInner);
                 row.appendChild(dayCell);
             });
             
