@@ -1,0 +1,14 @@
+public/index.html
+  h_2f2e0daf8435ba 9625
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "deb85f2a3355650595064cc3e99863967349b50e",
+  "prompts": {},
+  "humans": {
+    "h_2f2e0daf8435ba": {
+      "author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
