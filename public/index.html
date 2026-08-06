@@ -437,6 +437,34 @@
             display: none;
         }
 
+        .jira-sync-host-notice {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px 12px;
+            max-width: 960px;
+            margin: 0 auto 12px;
+            padding: 8px 12px;
+            background: var(--cream-2);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--brutal-shadow-sm);
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        .jira-sync-host-notice.hidden {
+            display: none;
+        }
+
+        .jira-sync-host-notice-text {
+            margin: 0;
+            color: var(--text);
+        }
+
         .username-display {
             display: inline-flex;
             align-items: center;
@@ -2676,6 +2704,10 @@
     </style>
 </head>
 <body>
+    <div id="jira-sync-host-notice" class="jira-sync-host-notice hidden no-print" role="note">
+        <p class="jira-sync-host-notice-text">Jira worklog sync is available on the Cloudflare Workers site.</p>
+        <a class="jira-sync-host-link" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer">Open TimeLive with Jira sync</a>
+    </div>
     <!-- Authentication Form -->
     <div id="auth-container" class="container">
         <div class="auth-card">
@@ -5631,10 +5663,15 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         function updateJiraSyncHostLink() {
-            const link = document.getElementById('jira-sync-host-link');
-            if (!link) return;
-            link.href = JIRA_SYNC_CANONICAL_URL;
-            link.classList.toggle('hidden', !shouldShowJiraSyncHostLink());
+            const show = shouldShowJiraSyncHostLink();
+            document.querySelectorAll('.jira-sync-host-notice').forEach((el) => {
+                el.classList.toggle('hidden', !show);
+            });
+            document.querySelectorAll('a.jira-sync-host-link').forEach((link) => {
+                link.href = JIRA_SYNC_CANONICAL_URL;
+                if (link.closest('.jira-sync-host-notice')) return;
+                link.classList.toggle('hidden', !show);
+            });
         }
 
         function resolveJiraProxyUrl(storedProxyUrl) {
