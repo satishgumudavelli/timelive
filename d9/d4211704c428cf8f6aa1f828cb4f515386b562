@@ -1,0 +1,29 @@
+wrangler.jsonc
+  s_b7eba6e5584dcb::t_70c811aef53374 6
+public/index.html
+  s_b7eba6e5584dcb::t_ec888cc0bd48ad 5578
+  s_b7eba6e5584dcb::t_0f51b5f50333a0 5570,5574-5577
+  s_b7eba6e5584dcb::t_4281eebcd8aff8 1-5569,5571-5573,5579-9529
+public/timesheet_sample.csv
+  s_b7eba6e5584dcb::t_4281eebcd8aff8 1-7
+index.html
+  s_b7eba6e5584dcb::t_86cc2a7a96d55b 1
+timesheet_sample.csv
+  s_b7eba6e5584dcb::t_1f57fe9f77baf6 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "d9d4211704c428cf8f6aa1f828cb4f515386b562",
+  "prompts": {},
+  "sessions": {
+    "s_b7eba6e5584dcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "beb25a66-efcd-430f-9786-299f255c647b",
+        "model": "composer-2.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
