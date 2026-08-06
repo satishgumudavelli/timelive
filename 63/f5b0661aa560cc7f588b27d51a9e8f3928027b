@@ -1,0 +1,58 @@
+worker.js
+  s_b7eba6e5584dcb::t_65d2c50ef2a2ff 7-9,12-14,16,23-26
+  s_b7eba6e5584dcb::t_5de04a4b3668b0 1-6,10-11,15,17-22,27-109
+index.html
+  s_b7eba6e5584dcb::t_9ff3f29a8a172a 5888,5892-5893,5896-5903
+  s_b7eba6e5584dcb::t_bf0646dfa42344 5857,5860,5862
+  s_b7eba6e5584dcb::t_bc9699bb0d9aa4 5615
+  s_b7eba6e5584dcb::t_fd936a502bf16b 5150-5159
+  s_b7eba6e5584dcb::t_19887410c241f9 5946-5947
+  s_b7eba6e5584dcb::t_dc9787f2786865 2708
+  s_b7eba6e5584dcb::t_0247366d1de7fa 3121-3130,3132-3133,3139-3161
+  s_b7eba6e5584dcb::t_6f17cf03298d98 8423
+  s_b7eba6e5584dcb::t_4c4cf12d6c17d7 3131,3136
+  s_b7eba6e5584dcb::t_fecde87213f411 3134-3135,3137-3138
+  s_b7eba6e5584dcb::t_c3913258d7c29d 5697
+  s_b7eba6e5584dcb::t_6fdab39d1ac77b 5561-5581
+  s_b7eba6e5584dcb::t_d123f65ce1254f 5739
+  s_b7eba6e5584dcb::t_6b46277edab65e 5648-5653,5657-5658
+  s_b7eba6e5584dcb::t_f7a2ca7b6e43d3 5861
+  s_b7eba6e5584dcb::t_e6fd134e7be1ef 5582-5586
+  s_b7eba6e5584dcb::t_393864adbc8b69 2177-2248
+  s_b7eba6e5584dcb::t_a071b832c6405e 5607
+  s_b7eba6e5584dcb::t_44722556adc496 5751
+  s_b7eba6e5584dcb::t_d09ee4076a5050 5691
+  s_b7eba6e5584dcb::t_20946429f5a336 8353
+  s_b7eba6e5584dcb::t_edd71f275e1299 8486
+  s_b7eba6e5584dcb::t_5045d01fafeae4 5527-5547,5587-5602,5609-5613,5616-5618,5620-5621,5623-5637,5640-5647,5654-5656,5659-5664,5719-5730,5734,5737,5741,5745-5750,5752-5856,5858-5859,5863-5887,5889-5891,5904-5923,5925-5945,5951-6034
+  s_b7eba6e5584dcb::t_ed6cfa64af0cdc 5665-5690,5692-5696,5698-5718,5731-5733,5735-5736,5738,5740,5742-5744
+  s_b7eba6e5584dcb::t_f9cfb4222b40ea 5894-5895
+  s_b7eba6e5584dcb::t_2f550c5e7d09b6 5948-5950
+  s_b7eba6e5584dcb::t_0f3f9c13cc80d2 2996-3010
+  s_b7eba6e5584dcb::t_8c9da29626b281 5924
+  s_b7eba6e5584dcb::t_5f9c0dedca54ca 5548-5560,5603-5606,5608,5614,5619,5622,5638-5639
+wrangler.jsonc
+  s_b7eba6e5584dcb::t_2f97b047979288 2-6,10-11
+  s_b7eba6e5584dcb::t_fb744ee68cf873 7-9
+  s_b7eba6e5584dcb::t_2e2c09add4dcd6 1
+.assetsignore
+  s_b7eba6e5584dcb::t_edb58299b72335 1-7
+jira-proxy-worker.js
+  s_b7eba6e5584dcb::t_6276afcfa7b5d5 1-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "63f5b0661aa560cc7f588b27d51a9e8f3928027b",
+  "prompts": {},
+  "sessions": {
+    "s_b7eba6e5584dcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "beb25a66-efcd-430f-9786-299f255c647b",
+        "model": "composer-2.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
