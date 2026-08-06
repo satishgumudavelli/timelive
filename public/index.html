@@ -414,6 +414,29 @@
             max-width: 100%;
         }
 
+        .jira-sync-host-link {
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.35;
+            color: var(--ink);
+            text-decoration: none;
+            padding: 5px 10px;
+            background: var(--cream-2);
+            border: var(--border-w) solid var(--ink);
+            border-radius: var(--radius-sm);
+            box-shadow: var(--brutal-shadow-sm);
+            max-width: min(100%, 240px);
+            text-align: center;
+        }
+
+        .jira-sync-host-link:hover {
+            text-decoration: underline;
+        }
+
+        .jira-sync-host-link.hidden {
+            display: none;
+        }
+
         .username-display {
             display: inline-flex;
             align-items: center;
@@ -2705,6 +2728,7 @@
                     <span id="username-display-text" class="username-display-text"></span>
                 </span>
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
+                <a id="jira-sync-host-link" class="jira-sync-host-link hidden" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer" title="Jira worklog sync runs on the Cloudflare Workers site">For Jira sync, open this site</a>
                 <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small" title="Jira Cloud email and API token for worklog import">Jira</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
@@ -5022,6 +5046,7 @@
             const credentials = await getStoredCredentials();
 
             setupEventListeners();
+            updateJiraSyncHostLink();
 
             if (credentials) {
                 loadCredentials(credentials);
@@ -5525,6 +5550,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         ];
 
         const JIRA_SETTINGS_STORAGE = 'timelive_jira_settings';
+        const JIRA_SYNC_CANONICAL_HOST = 'timelive.satish-gumudavelli-cp.workers.dev';
+        const JIRA_SYNC_CANONICAL_URL = 'https://timelive.satish-gumudavelli-cp.workers.dev/';
         let jiraFetchedWorklogs = [];
 
         function normalizeJiraBaseUrl(url) {
@@ -5576,6 +5603,38 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         function isLocalWranglerDevHost() {
             const host = location.hostname;
             return (host === 'localhost' || host === '127.0.0.1') && location.port === '8787';
+        }
+
+        function isJiraSyncCanonicalHost() {
+            return location.hostname.toLowerCase() === JIRA_SYNC_CANONICAL_HOST;
+        }
+
+        function isLocalDevHost() {
+            const host = location.hostname.toLowerCase();
+            return host === '127.0.0.1' || host === 'localhost' || host === '[::1]';
+        }
+
+        function isNgrokHost() {
+            const host = location.hostname.toLowerCase();
+            return host.endsWith('.ngrok.io')
+                || host.endsWith('.ngrok.app')
+                || host.endsWith('.ngrok-free.app')
+                || host.endsWith('.ngrok-free.dev')
+                || host.endsWith('.ngrok.dev');
+        }
+
+        function shouldShowJiraSyncHostLink() {
+            if (isJiraSyncCanonicalHost()) return false;
+            if (isLocalDevHost()) return false;
+            if (isNgrokHost()) return false;
+            return true;
+        }
+
+        function updateJiraSyncHostLink() {
+            const link = document.getElementById('jira-sync-host-link');
+            if (!link) return;
+            link.href = JIRA_SYNC_CANONICAL_URL;
+            link.classList.toggle('hidden', !shouldShowJiraSyncHostLink());
         }
 
         function resolveJiraProxyUrl(storedProxyUrl) {
