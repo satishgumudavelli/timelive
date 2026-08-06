@@ -1,0 +1,27 @@
+index.html
+  s_b7eba6e5584dcb::t_bc8eb52b7f6b66 4956-4957,4965-4967
+  s_b7eba6e5584dcb::t_2e3095b71e5f8a 1787-1809
+  s_b7eba6e5584dcb::t_185e371ad6392e 7491,7498
+  s_b7eba6e5584dcb::t_6850ce4a396f58 7615-7616
+  s_b7eba6e5584dcb::t_6bc2b4105ab465 7204
+  s_b7eba6e5584dcb::t_45d89002b7baed 7334-7349
+  s_b7eba6e5584dcb::t_fe29ca7f830c88 7536
+  s_b7eba6e5584dcb::t_40d482c0f6fd3e 7285-7286,7289,7291,7298-7299,7308,7317-7333,7350-7354,7374,7379-7380,7382,7393-7396,7398-7399
+  s_b7eba6e5584dcb::t_cad2e5d9c96732 2723-2728
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "08862ed22d2b5018a9ade1a7d59e8540627863d6",
+  "prompts": {},
+  "sessions": {
+    "s_b7eba6e5584dcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "beb25a66-efcd-430f-9786-299f255c647b",
+        "model": "composer-2.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
