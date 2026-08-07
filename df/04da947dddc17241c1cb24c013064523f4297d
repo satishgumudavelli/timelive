@@ -1,0 +1,38 @@
+public/index.html
+  s_b7eba6e5584dcb::t_2b588e7a19f817 5711-5731,5733,5741,5743,5745,5749-5792,5796-5823
+  s_b7eba6e5584dcb::t_0ebee0635f6c63 5824,6144,6233-6235,6248,6250,6267-6270,6284-6285,6296,6308-6319,6328,6330,6333-6348
+  s_b7eba6e5584dcb::t_165300418a92b5 6286-6288
+  s_b7eba6e5584dcb::t_d1b5cb9f6eb6c0 8672-8673,8743-8744,8807-8808
+  s_b7eba6e5584dcb::t_49647bce9be962 3096,3099
+  s_b7eba6e5584dcb::t_1ca914586d4842 5126-5127
+  s_b7eba6e5584dcb::t_6da7a0a9f49544 5636-5638,5640
+  s_b7eba6e5584dcb::t_fcbb4ecc5560d1 2736-2739,2741
+  s_b7eba6e5584dcb::t_0239b48a7f136a 8257-8259
+  s_b7eba6e5584dcb::t_1ce652540567e3 1845
+  s_b7eba6e5584dcb::t_ad2a014283b4f2 6052,6054-6061,6071,6073-6077,6109-6143
+  s_b7eba6e5584dcb::t_94d2581b101dfc 2890-2902
+  s_b7eba6e5584dcb::t_ae560bb15f42e2 2795
+  s_b7eba6e5584dcb::t_9e910f051d5355 468-494
+  s_b7eba6e5584dcb::t_775c0ec4dd873f 5263-5265
+  s_b7eba6e5584dcb::t_462acf4d5600a2 5916-5920,5923
+  s_b7eba6e5584dcb::t_8666f01035da9f 5825
+  s_b7eba6e5584dcb::t_6c4dee4bc41ad0 6145
+.github/workflows/deploy.yml
+  s_b7eba6e5584dcb::t_3d7ff1996e097e 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "df04da947dddc17241c1cb24c013064523f4297d",
+  "prompts": {},
+  "sessions": {
+    "s_b7eba6e5584dcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "beb25a66-efcd-430f-9786-299f255c647b",
+        "model": "composer-2.5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
