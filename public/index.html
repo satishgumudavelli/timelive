@@ -5209,7 +5209,12 @@
                     positionDescQuickEdit(descQuickEditContext.anchorEl);
                 }
             });
-            bindEl('csv-export-btn', 'click', exportCurrentWeekToCsv);
+            bindEl('csv-export-btn', 'click', () => {
+                exportCurrentWeekToCsv().catch((err) => {
+                    showToast('Export failed: ' + (err.message || err), 'error');
+                    console.error('CSV export error:', err);
+                });
+            });
             bindEl('csv-import-btn', 'click', () => showCSVImportModal());
             bindEl('close-modal', 'click', hideEntryModal);
             bindEl('close-csv-modal', 'click', hideCSVImportModal);
@@ -8734,11 +8739,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
         async function showCellEditModal(entry, dateStr, projectTaskInfo) {
             const modal = document.getElementById('entry-modal');
-            const form = document.getElementById('entry-form');
             const title = document.getElementById('modal-title');
             const deleteBtn = document.getElementById('delete-entry-btn');
             const favGroup = document.getElementById('entry-favorites-group');
-            if (favGroup) favGroup.style.display = 'none';
+            if (favGroup) favGroup.style.display = '';
+            populateEntryFavoritesSelect();
             clearEntryFormError();
             clearJiraWorklogPanel('modal');
             populateJiraIssueKeyDatalist();
@@ -9075,21 +9080,22 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 const successMsg = api.getApiSuccessMessage(result)
                     || (entryId ? 'Time entry Update Succesfully.' : 'Time entry Add Succesfully.');
 
-                // Keep modal open; promote create → edit so a second Save updates the same row.
-                const newId = result && (result.id || result.Id || result.AccountEmployeeTimeEntryId);
-                if (!entryId && newId) {
-                    document.getElementById('entry-id').value = String(newId);
-                    document.getElementById('modal-title').textContent = 'Edit Timesheet Entry';
-                    const deleteBtn = document.getElementById('delete-entry-btn');
-                    if (deleteBtn) {
-                        deleteBtn.style.display = 'inline-block';
-                        deleteBtn.dataset.entryId = String(newId);
-                    }
-                }
-
                 showEntryFormMessage(successMsg, 'success');
                 showToast(successMsg, 'success', 3500);
                 await loadTimesheetData();
+
+                if (entryId) {
+                    hideEntryModal();
+                } else {
+                    document.getElementById('entry-id').value = '';
+                    document.getElementById('modal-title').textContent = 'Add Timesheet Entry';
+                    const deleteBtn = document.getElementById('delete-entry-btn');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = 'none';
+                        deleteBtn.dataset.entryId = '';
+                    }
+                    clearJiraWorklogPanel('modal');
+                }
             } catch (error) {
                 const message = error.message || 'Error saving entry.';
                 showEntryFormError(message);
@@ -9342,13 +9348,49 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             URL.revokeObjectURL(url);
         }
 
-        function exportCurrentWeekToCsv() {
-            if (!timesheetEntries || timesheetEntries.length === 0) {
-                showToast('No timesheet entries to export for this week.', 'error');
+        async function exportCurrentWeekToCsv() {
+            const fromEl = document.getElementById('export-date-from');
+            const toEl = document.getElementById('export-date-to');
+            const fromStr = fromEl && fromEl.value ? fromEl.value : '';
+            const toStr = toEl && toEl.value ? toEl.value : '';
+            const hasDateRange = Boolean(fromStr || toStr);
+            const exportFrom = fromStr || toStr;
+            const exportTo = toStr || fromStr;
+
+            if (hasDateRange && exportFrom > exportTo) {
+                showToast('Export "from" date must be on or before "to" date.', 'error');
                 return;
             }
+
+            let sourceList;
+            if (hasDateRange) {
+                if (!api) {
+                    showToast('Connect to TimeLive before exporting.', 'error');
+                    return;
+                }
+                if (!currentEmployee) {
+                    await loadCurrentEmployee();
+                }
+                const employeeId = currentEmployee ? currentEmployee.AccountEmployeeId : null;
+                pushAppBusy('Loading entries for export…');
+                try {
+                    sourceList = await api.getTimesheetEntries(exportFrom, exportTo, employeeId);
+                } catch (err) {
+                    showToast('Could not load entries for export: ' + err.message, 'error');
+                    return;
+                } finally {
+                    popAppBusy();
+                }
+                sourceList = Array.isArray(sourceList) ? [...sourceList] : [];
+            } else {
+                if (!timesheetEntries || timesheetEntries.length === 0) {
+                    showToast('No timesheet entries to export for this week.', 'error');
+                    return;
+                }
+                sourceList = [...timesheetEntries];
+            }
+
             const selectedIds = getSelectedEntryIdsFromGrid();
-            let sourceList = [...timesheetEntries];
             if (selectedIds.size > 0) {
                 sourceList = sourceList.filter(e => selectedIds.has(String(e.AccountEmployeeTimeEntryId || e.Id || '')));
             }
@@ -9357,16 +9399,12 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (exportClientId) {
                 sourceList = sourceList.filter(e => String(e.AccountClientId || '') === exportClientId);
             }
-            const fromEl = document.getElementById('export-date-from');
-            const toEl = document.getElementById('export-date-to');
-            const fromStr = fromEl && fromEl.value ? fromEl.value : '';
-            const toStr = toEl && toEl.value ? toEl.value : '';
-            if (fromStr && toStr) {
+            if (hasDateRange) {
                 sourceList = sourceList.filter(e => {
                     const raw = e.TimeEntryDate || e.EntryDate;
                     if (!raw) return false;
                     const d = formatDateForAPI(new Date(raw));
-                    return d >= fromStr && d <= toStr;
+                    return d >= exportFrom && d <= exportTo;
                 });
             }
             if (sourceList.length === 0) {
@@ -9421,14 +9459,20 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
 
             const csvText = [headerLine, ...dataLines].join('\r\n');
-            const weekEnd = new Date(currentWeekStart);
-            weekEnd.setDate(weekEnd.getDate() + 6);
+            let filename;
+            if (hasDateRange) {
+                filename = `timesheet-export-${exportFrom}-to-${exportTo}.csv`;
+            } else {
+                const weekEnd = new Date(currentWeekStart);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                filename = `timesheet-export-${formatDateForAPI(currentWeekStart)}-to-${formatDateForAPI(weekEnd)}.csv`;
+            }
             const parts = [];
             if (selectedIds.size > 0) parts.push('selected');
             if (exportClientId) parts.push('client');
-            if (fromStr && toStr) parts.push(`${fromStr}_to_${toStr}`);
-            const suffix = parts.length ? '-' + parts.join('-') : '';
-            const filename = `timesheet-export-${formatDateForAPI(currentWeekStart)}-to-${formatDateForAPI(weekEnd)}${suffix}.csv`;
+            if (parts.length) {
+                filename = filename.replace('.csv', `-${parts.join('-')}.csv`);
+            }
             downloadCsvFile(filename, csvText);
             showToast(`Exported ${dataLines.length} entr${dataLines.length === 1 ? 'y' : 'ies'}.`, 'success', 4000);
         }
