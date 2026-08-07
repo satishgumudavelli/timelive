@@ -2268,6 +2268,20 @@
             min-width: 120px;
         }
 
+        .jira-day-issues-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .jira-day-issue-select {
+            flex: 1;
+            min-width: 160px;
+            font-size: 12px;
+        }
+
         .jira-worklog-panel {
             margin-top: 10px;
             padding: 10px 12px;
@@ -2888,6 +2902,12 @@
                 </div>
                 <textarea id="desc-quick-edit-input" rows="3" placeholder="What did you work on?" aria-label="Entry description"></textarea>
                 <div id="qe-jira-worklog-section" class="desc-quick-edit-jira jira-features-host hidden">
+                    <div class="jira-day-issues-row">
+                        <button type="button" id="qe-jira-load-day-issues-btn" class="btn btn-secondary btn-small">Load issues for date</button>
+                        <select id="qe-jira-day-issue-select" class="jira-day-issue-select" disabled aria-label="Jira issues logged on entry date">
+                            <option value="">— Your issues on this date —</option>
+                        </select>
+                    </div>
                     <div class="jira-issue-row">
                         <input type="text" id="qe-jira-issue-key" list="jira-issue-key-list" placeholder="PROJ-123" autocomplete="off" aria-label="Jira issue key">
                         <button type="button" id="qe-jira-fetch-worklogs-btn" class="btn btn-secondary btn-small">Fetch</button>
@@ -3095,11 +3115,17 @@
                     </div>
                     <div class="form-group jira-worklog-section jira-features-host hidden">
                         <label for="jira-issue-key">Jira worklogs</label>
+                        <div class="jira-day-issues-row">
+                            <button type="button" id="jira-load-day-issues-btn" class="btn btn-secondary btn-small">Load issues for date</button>
+                            <select id="jira-day-issue-select" class="jira-day-issue-select" disabled aria-label="Jira issues logged on entry date">
+                                <option value="">— Your issues on this date —</option>
+                            </select>
+                        </div>
                         <div class="jira-issue-row">
                             <input type="text" id="jira-issue-key" list="jira-issue-key-list" placeholder="PROJ-123" autocomplete="off" aria-label="Jira issue key">
                             <button type="button" id="jira-fetch-worklogs-btn" class="btn btn-secondary btn-small">Fetch</button>
                         </div>
-                        <small style="color: #666; font-size: 12px;">Fetches your worklogs on the entry date for the issue key above.</small>
+                        <small style="color: #666; font-size: 12px;">Load your issues for the entry date, pick one to fetch worklog notes, or enter an issue key manually.</small>
                         <div id="jira-worklog-panel" class="jira-worklog-panel hidden">
                             <div class="jira-worklog-panel-heading">Select worklogs to add to Notes</div>
                             <div id="jira-worklog-list" class="jira-worklog-list"></div>
@@ -5265,8 +5291,12 @@
             });
             bindEl('jira-fetch-worklogs-btn', 'click', handleJiraFetchWorklogsClick);
             bindEl('jira-add-worklogs-btn', 'click', handleJiraAddWorklogsClick);
+            bindEl('jira-load-day-issues-btn', 'click', () => handleJiraLoadDayIssuesClick('modal'));
+            bindEl('jira-day-issue-select', 'change', () => handleJiraDayIssueSelect('modal'));
             bindEl('qe-jira-fetch-worklogs-btn', 'click', handleQeJiraFetchWorklogsClick);
             bindEl('qe-jira-add-worklogs-btn', 'click', handleQeJiraAddWorklogsClick);
+            bindEl('qe-jira-load-day-issues-btn', 'click', () => handleJiraLoadDayIssuesClick('quick'));
+            bindEl('qe-jira-day-issue-select', 'change', () => handleJiraDayIssueSelect('quick'));
             bindEl('jira-sync-host-notice-dismiss', 'click', dismissJiraSyncNotice);
             bindEl('cancel-btn', 'click', hideEntryModal);
             bindEl('cancel-csv-btn', 'click', hideCSVImportModal);
@@ -5803,6 +5833,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return {
                     which: 'quick',
                     issueKeyEl: () => document.getElementById('qe-jira-issue-key'),
+                    issueSelectEl: () => document.getElementById('qe-jira-day-issue-select'),
+                    loadIssuesBtnEl: () => document.getElementById('qe-jira-load-day-issues-btn'),
                     listEl: () => document.getElementById('qe-jira-worklog-list'),
                     panelEl: () => document.getElementById('qe-jira-worklog-panel'),
                     addBtnEl: () => document.getElementById('qe-jira-add-worklogs-btn'),
@@ -5815,6 +5847,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return {
                 which: 'modal',
                 issueKeyEl: () => document.getElementById('jira-issue-key'),
+                issueSelectEl: () => document.getElementById('jira-day-issue-select'),
+                loadIssuesBtnEl: () => document.getElementById('jira-load-day-issues-btn'),
                 listEl: () => document.getElementById('jira-worklog-list'),
                 panelEl: () => document.getElementById('jira-worklog-panel'),
                 addBtnEl: () => document.getElementById('jira-add-worklogs-btn'),
@@ -5837,6 +5871,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         function buildJiraProxyEndpoint(proxyUrl) {
             const base = normalizeJiraProxyUrl(proxyUrl).replace(/\/$/, '');
             return `${base}/api/jira/worklog`;
+        }
+
+        function buildJiraIssuesForDateEndpoint(proxyUrl) {
+            const base = normalizeJiraProxyUrl(proxyUrl).replace(/\/$/, '');
+            return `${base}/api/jira/issues-for-date`;
         }
 
         async function getStoredJiraSettings() {
@@ -6027,6 +6066,129 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             });
         }
 
+        function filterWorklogsByAuthor(worklogs, email) {
+            const needle = String(email || '').trim().toLowerCase();
+            if (!needle) return worklogs;
+            return worklogs.filter(w => {
+                const author = w && w.author;
+                if (!author) return true;
+                const authorEmail = String(author.emailAddress || '').trim().toLowerCase();
+                if (authorEmail) return authorEmail === needle;
+                return true;
+            });
+        }
+
+        function parseJiraIssuesForDateResponse(payload) {
+            const rawIssues = Array.isArray(payload && payload.issues)
+                ? payload.issues
+                : (Array.isArray(payload && payload.values) ? payload.values : []);
+            const seen = new Set();
+            const issues = [];
+            rawIssues.forEach((item) => {
+                const key = String((item && (item.key || item.issueKey)) || '').trim().toUpperCase();
+                if (!key || seen.has(key)) return;
+                seen.add(key);
+                const summary = item.fields && item.fields.summary
+                    ? String(item.fields.summary).trim()
+                    : (item.summary ? String(item.summary).trim() : '');
+                issues.push({ key, summary });
+            });
+            return issues;
+        }
+
+        async function fetchJiraIssuesForDate(dateStr, settings) {
+            const proxyUrl = resolveJiraProxyUrl(settings.proxyUrl);
+            if (!proxyUrl) {
+                throw new Error('Set a Jira proxy URL in Jira settings (required on GitHub Pages).');
+            }
+            let res;
+            try {
+                res = await fetch(buildJiraIssuesForDateEndpoint(proxyUrl), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        baseUrl: settings.baseUrl,
+                        email: settings.email,
+                        token: settings.token,
+                        date: dateStr
+                    })
+                });
+            } catch (e) {
+                throw new Error('Could not reach Jira proxy. Check the proxy URL in Jira settings.');
+            }
+            const payload = await parseJiraApiResponse(res);
+            return parseJiraIssuesForDateResponse(payload);
+        }
+
+        function populateJiraDayIssueSelect(which, issues) {
+            const ctx = jiraGetContext(which);
+            const sel = ctx.issueSelectEl();
+            if (!sel) return;
+            sel.innerHTML = '<option value="">— Your issues on this date —</option>';
+            issues.forEach((issue) => {
+                const opt = document.createElement('option');
+                opt.value = issue.key;
+                opt.textContent = issue.summary ? `${issue.key} — ${issue.summary}` : issue.key;
+                sel.appendChild(opt);
+            });
+            sel.disabled = issues.length === 0;
+        }
+
+        async function handleJiraLoadDayIssuesClick(which) {
+            if (!isJiraFeaturesAvailable()) return;
+            const ctx = jiraGetContext(which);
+            const settings = await getStoredJiraSettings();
+            if (!settings || !settings.token) {
+                showToast('Configure Jira settings first (email + API token).', 'error', 7000);
+                showJiraSettingsModal();
+                return;
+            }
+            const dateStr = ctx.getDateStr();
+            if (!dateStr) {
+                showToast('Select an entry date first.', 'error');
+                return;
+            }
+            const btn = ctx.loadIssuesBtnEl();
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Loading…';
+            }
+            try {
+                const issues = await fetchJiraIssuesForDate(dateStr, settings);
+                populateJiraDayIssueSelect(which, issues);
+                showToast(
+                    issues.length ? `Found ${issues.length} issue(s) for ${dateStr}.` : `No Jira issues with your worklogs on ${dateStr}.`,
+                    issues.length ? 'success' : 'info',
+                    4000
+                );
+            } catch (e) {
+                const msg = e.message || String(e);
+                if (/401|403|credentials|API token|Jira settings/i.test(msg)) {
+                    showJiraSettingsModal();
+                }
+                showToast(msg, 'error', 8000);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Load issues for date';
+                }
+            }
+        }
+
+        async function handleJiraDayIssueSelect(which) {
+            const ctx = jiraGetContext(which);
+            const sel = ctx.issueSelectEl();
+            const issueKeyEl = ctx.issueKeyEl();
+            const issueKey = sel ? sel.value.trim().toUpperCase() : '';
+            if (!issueKey) return;
+            if (issueKeyEl) issueKeyEl.value = issueKey;
+            rememberJiraIssueKey(issueKey);
+            await fetchJiraWorklogsForContext(which);
+        }
+
         function jiraAdfToPlainText(node) {
             if (!node) return '';
             if (typeof node === 'string') return node;
@@ -6054,6 +6216,21 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return `${issueKey} — ${time}`;
         }
 
+        function resetJiraDayIssueSelect(which) {
+            const ctx = jiraGetContext(which || 'modal');
+            const sel = ctx.issueSelectEl();
+            const loadBtn = ctx.loadIssuesBtnEl();
+            if (sel) {
+                sel.innerHTML = '<option value="">— Your issues on this date —</option>';
+                sel.value = '';
+                sel.disabled = true;
+            }
+            if (loadBtn) {
+                loadBtn.disabled = false;
+                loadBtn.textContent = 'Load issues for date';
+            }
+        }
+
         function clearJiraWorklogPanel(which) {
             jiraFetchedWorklogs = [];
             jiraFetchedWorklogsContext = which || 'modal';
@@ -6071,6 +6248,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 fetchBtn.disabled = false;
                 fetchBtn.textContent = 'Fetch';
             }
+            resetJiraDayIssueSelect(which || 'modal');
         }
 
         function renderJiraWorklogList(worklogs, issueKey, which) {
@@ -6285,7 +6463,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
             try {
                 const all = await fetchAllJiraWorklogs(issueKey, settings);
-                const filtered = filterWorklogsByDate(all, dateStr);
+                let filtered = filterWorklogsByDate(all, dateStr);
+                filtered = filterWorklogsByAuthor(filtered, settings.email);
                 rememberJiraIssueKey(issueKey);
                 renderJiraWorklogList(filtered, issueKey, which);
                 if (which === 'quick' && descQuickEditContext && descQuickEditContext.anchorEl) {
@@ -8268,6 +8447,9 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 positionDescQuickEdit(anchorEl);
                 timeInput.focus();
                 timeInput.select();
+                if (isJiraFeaturesAvailable()) {
+                    handleJiraLoadDayIssuesClick('quick').catch(() => {});
+                }
             });
         }
 
@@ -8735,6 +8917,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
             
             modal.classList.remove('hidden');
+
+            if (isJiraFeaturesAvailable()) {
+                handleJiraLoadDayIssuesClick('modal').catch(() => {});
+            }
         }
 
         async function showCellEditModal(entry, dateStr, projectTaskInfo) {
@@ -8802,6 +8988,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
             
             modal.classList.remove('hidden');
+
+            if (isJiraFeaturesAvailable()) {
+                handleJiraLoadDayIssuesClick('modal').catch(() => {});
+            }
         }
 
         function hideEntryModal() {
