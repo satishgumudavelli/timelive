@@ -465,6 +465,33 @@
             color: var(--text);
         }
 
+        .jira-sync-host-notice-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .jira-features-host.hidden {
+            display: none !important;
+        }
+
+        .desc-quick-edit-jira {
+            margin-bottom: 10px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--ink);
+        }
+
+        .desc-quick-edit-jira .jira-worklog-panel {
+            margin-top: 8px;
+            max-height: 140px;
+        }
+
+        .desc-quick-edit-jira .jira-worklog-list {
+            max-height: 100px;
+        }
+
         .username-display {
             display: inline-flex;
             align-items: center;
@@ -1815,7 +1842,7 @@
         .desc-quick-edit {
             position: fixed;
             z-index: 10001;
-            width: min(320px, calc(100vw - 24px));
+            width: min(360px, calc(100vw - 24px));
             padding: 12px 14px;
             background: var(--cream);
             color: var(--ink);
@@ -2706,8 +2733,12 @@
 <body>
     <div id="jira-sync-host-notice" class="jira-sync-host-notice hidden no-print" role="note">
         <p class="jira-sync-host-notice-text">Jira worklog sync is available on the Cloudflare Workers site.</p>
-        <a class="jira-sync-host-link" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer">Open TimeLive with Jira sync</a>
+        <div class="jira-sync-host-notice-actions">
+            <a class="jira-sync-host-link" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer">Open TimeLive with Jira sync</a>
+            <button type="button" id="jira-sync-host-notice-dismiss" class="btn btn-secondary btn-small">Don't show again</button>
+        </div>
     </div>
+    <datalist id="jira-issue-key-list"></datalist>
     <!-- Authentication Form -->
     <div id="auth-container" class="container">
         <div class="auth-card">
@@ -2761,7 +2792,7 @@
                 </span>
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
                 <a id="jira-sync-host-link" class="jira-sync-host-link hidden" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer" title="Jira worklog sync runs on the Cloudflare Workers site">For Jira sync, open this site</a>
-                <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small" title="Jira Cloud email and API token for worklog import">Jira</button>
+                <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-features-host hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                     <span id="support-unread-badge" class="support-unread-badge hidden" aria-label="Unread support replies">0</span>
@@ -2856,6 +2887,19 @@
                     <small>HH:MM, or shorthand: 15 → 00:15, 145 → 01:45</small>
                 </div>
                 <textarea id="desc-quick-edit-input" rows="3" placeholder="What did you work on?" aria-label="Entry description"></textarea>
+                <div id="qe-jira-worklog-section" class="desc-quick-edit-jira jira-features-host hidden">
+                    <div class="jira-issue-row">
+                        <input type="text" id="qe-jira-issue-key" list="jira-issue-key-list" placeholder="PROJ-123" autocomplete="off" aria-label="Jira issue key">
+                        <button type="button" id="qe-jira-fetch-worklogs-btn" class="btn btn-secondary btn-small">Fetch</button>
+                    </div>
+                    <div id="qe-jira-worklog-panel" class="jira-worklog-panel hidden">
+                        <div class="jira-worklog-panel-heading">Select worklogs</div>
+                        <div id="qe-jira-worklog-list" class="jira-worklog-list"></div>
+                        <div class="jira-worklog-actions">
+                            <button type="button" id="qe-jira-add-worklogs-btn" class="btn btn-secondary btn-small" disabled>Add selected</button>
+                        </div>
+                    </div>
+                </div>
                 <div class="desc-quick-edit-actions">
                     <button type="button" id="desc-quick-edit-cancel" class="btn btn-secondary btn-small">Cancel</button>
                     <button type="button" id="desc-quick-edit-save" class="btn btn-primary btn-small">Save</button>
@@ -3049,10 +3093,10 @@
                         </div>
                         <small style="color: #666; font-size: 12px;">HH:MM, or shorthand: 15 → 00:15, 145 → 01:45</small>
                     </div>
-                    <div class="form-group jira-worklog-section">
+                    <div class="form-group jira-worklog-section jira-features-host hidden">
                         <label for="jira-issue-key">Jira worklogs</label>
                         <div class="jira-issue-row">
-                            <input type="text" id="jira-issue-key" placeholder="PROJ-123" autocomplete="off" aria-label="Jira issue key">
+                            <input type="text" id="jira-issue-key" list="jira-issue-key-list" placeholder="PROJ-123" autocomplete="off" aria-label="Jira issue key">
                             <button type="button" id="jira-fetch-worklogs-btn" class="btn btn-secondary btn-small">Fetch</button>
                         </div>
                         <small style="color: #666; font-size: 12px;">Fetches your worklogs on the entry date for the issue key above.</small>
@@ -5079,6 +5123,8 @@
 
             setupEventListeners();
             updateJiraSyncHostLink();
+            updateJiraFeaturesVisibility();
+            populateJiraIssueKeyDatalist();
 
             if (credentials) {
                 loadCredentials(credentials);
@@ -5214,6 +5260,9 @@
             });
             bindEl('jira-fetch-worklogs-btn', 'click', handleJiraFetchWorklogsClick);
             bindEl('jira-add-worklogs-btn', 'click', handleJiraAddWorklogsClick);
+            bindEl('qe-jira-fetch-worklogs-btn', 'click', handleQeJiraFetchWorklogsClick);
+            bindEl('qe-jira-add-worklogs-btn', 'click', handleQeJiraAddWorklogsClick);
+            bindEl('jira-sync-host-notice-dismiss', 'click', dismissJiraSyncNotice);
             bindEl('cancel-btn', 'click', hideEntryModal);
             bindEl('cancel-csv-btn', 'click', hideCSVImportModal);
             bindEl('delete-entry-btn', 'click', handleDeleteFromForm);
@@ -5584,7 +5633,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         const JIRA_SETTINGS_STORAGE = 'timelive_jira_settings';
         const JIRA_SYNC_CANONICAL_HOST = 'timelive.satish-gumudavelli-cp.workers.dev';
         const JIRA_SYNC_CANONICAL_URL = 'https://timelive.satish-gumudavelli-cp.workers.dev/';
+        const JIRA_SYNC_NOTICE_DISMISSED_KEY = 'timelive_jira_sync_notice_dismissed';
+        const JIRA_RECENT_KEYS_STORAGE = 'timelive_jira_recent_keys';
+        const JIRA_RECENT_KEYS_MAX = 12;
         let jiraFetchedWorklogs = [];
+        let jiraFetchedWorklogsContext = 'modal';
 
         function normalizeJiraBaseUrl(url) {
             let u = String(url || '').trim().replace(/\/$/, '');
@@ -5655,7 +5708,29 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 || host.endsWith('.ngrok.dev');
         }
 
+        function isJiraFeaturesAvailable() {
+            return isJiraSyncCanonicalHost() || isLocalWranglerDevHost();
+        }
+
+        function isJiraSyncNoticeDismissed() {
+            try {
+                return localStorage.getItem(JIRA_SYNC_NOTICE_DISMISSED_KEY) === '1';
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function dismissJiraSyncNotice() {
+            try {
+                localStorage.setItem(JIRA_SYNC_NOTICE_DISMISSED_KEY, '1');
+            } catch (e) {
+                console.warn('TimeLive: could not save Jira notice preference.', e);
+            }
+            updateJiraSyncHostLink();
+        }
+
         function shouldShowJiraSyncHostLink() {
+            if (isJiraSyncNoticeDismissed()) return false;
             if (isJiraSyncCanonicalHost()) return false;
             if (isLocalDevHost()) return false;
             if (isNgrokHost()) return false;
@@ -5663,15 +5738,89 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         function updateJiraSyncHostLink() {
-            const show = shouldShowJiraSyncHostLink();
+            const showNotice = shouldShowJiraSyncHostLink();
             document.querySelectorAll('.jira-sync-host-notice').forEach((el) => {
-                el.classList.toggle('hidden', !show);
+                el.classList.toggle('hidden', !showNotice);
             });
+            const showHeaderLink = showNotice;
             document.querySelectorAll('a.jira-sync-host-link').forEach((link) => {
                 link.href = JIRA_SYNC_CANONICAL_URL;
                 if (link.closest('.jira-sync-host-notice')) return;
-                link.classList.toggle('hidden', !show);
+                link.classList.toggle('hidden', !showHeaderLink);
             });
+        }
+
+        function updateJiraFeaturesVisibility() {
+            const available = isJiraFeaturesAvailable();
+            document.querySelectorAll('.jira-features-host').forEach((el) => {
+                el.classList.toggle('hidden', !available);
+            });
+        }
+
+        function getRecentJiraIssueKeys() {
+            try {
+                const raw = localStorage.getItem(JIRA_RECENT_KEYS_STORAGE);
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return [];
+                return parsed.filter(k => typeof k === 'string' && /^[A-Z][A-Z0-9]+-\d+$/.test(k));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function rememberJiraIssueKey(issueKey) {
+            const key = String(issueKey || '').trim().toUpperCase();
+            if (!/^[A-Z][A-Z0-9]+-\d+$/.test(key)) return;
+            const recent = getRecentJiraIssueKeys().filter(k => k !== key);
+            recent.unshift(key);
+            try {
+                localStorage.setItem(JIRA_RECENT_KEYS_STORAGE, JSON.stringify(recent.slice(0, JIRA_RECENT_KEYS_MAX)));
+            } catch (e) {
+                console.warn('TimeLive: could not save recent Jira keys.', e);
+            }
+            populateJiraIssueKeyDatalist();
+        }
+
+        function populateJiraIssueKeyDatalist() {
+            const datalist = document.getElementById('jira-issue-key-list');
+            if (!datalist) return;
+            datalist.innerHTML = '';
+            getRecentJiraIssueKeys().forEach((key) => {
+                const opt = document.createElement('option');
+                opt.value = key;
+                datalist.appendChild(opt);
+            });
+        }
+
+        function jiraGetContext(which) {
+            if (which === 'quick') {
+                return {
+                    which: 'quick',
+                    issueKeyEl: () => document.getElementById('qe-jira-issue-key'),
+                    listEl: () => document.getElementById('qe-jira-worklog-list'),
+                    panelEl: () => document.getElementById('qe-jira-worklog-panel'),
+                    addBtnEl: () => document.getElementById('qe-jira-add-worklogs-btn'),
+                    fetchBtnEl: () => document.getElementById('qe-jira-fetch-worklogs-btn'),
+                    notesEl: () => document.getElementById('desc-quick-edit-input'),
+                    timeEl: () => document.getElementById('desc-quick-edit-time'),
+                    getDateStr: () => (descQuickEditContext && descQuickEditContext.dayDateStr) || ''
+                };
+            }
+            return {
+                which: 'modal',
+                issueKeyEl: () => document.getElementById('jira-issue-key'),
+                listEl: () => document.getElementById('jira-worklog-list'),
+                panelEl: () => document.getElementById('jira-worklog-panel'),
+                addBtnEl: () => document.getElementById('jira-add-worklogs-btn'),
+                fetchBtnEl: () => document.getElementById('jira-fetch-worklogs-btn'),
+                notesEl: () => document.getElementById('notes'),
+                timeEl: () => document.getElementById('hours'),
+                getDateStr: () => {
+                    const dateEl = document.getElementById('entry-date');
+                    return dateEl ? dateEl.value : '';
+                }
+            };
         }
 
         function resolveJiraProxyUrl(storedProxyUrl) {
@@ -5764,11 +5913,14 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         async function parseJiraApiResponse(res) {
-            if (res.status === 401 || res.status === 403) {
-                throw new Error('Jira authentication failed. Check your email and API token in Jira settings.');
+            if (res.status === 401) {
+                throw new Error('Jira rejected your credentials (401). Check your email and API token in Jira settings.');
+            }
+            if (res.status === 403) {
+                throw new Error('You do not have permission to view worklogs for this issue (403).');
             }
             if (res.status === 404) {
-                throw new Error('Jira issue not found. Check the issue key.');
+                throw new Error('Jira issue not found (404). Check the issue key.');
             }
             let payload = null;
             const text = await res.text();
@@ -5897,14 +6049,16 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return `${issueKey} — ${time}`;
         }
 
-        function clearJiraWorklogPanel() {
+        function clearJiraWorklogPanel(which) {
             jiraFetchedWorklogs = [];
-            const issueKey = document.getElementById('jira-issue-key');
-            const list = document.getElementById('jira-worklog-list');
-            const panel = document.getElementById('jira-worklog-panel');
-            const addBtn = document.getElementById('jira-add-worklogs-btn');
-            const fetchBtn = document.getElementById('jira-fetch-worklogs-btn');
-            if (issueKey) issueKey.value = '';
+            jiraFetchedWorklogsContext = which || 'modal';
+            const ctx = jiraGetContext(which || 'modal');
+            const issueKey = ctx.issueKeyEl();
+            const list = ctx.listEl();
+            const panel = ctx.panelEl();
+            const addBtn = ctx.addBtnEl();
+            const fetchBtn = ctx.fetchBtnEl();
+            if (issueKey && which !== 'quick') issueKey.value = '';
             if (list) list.innerHTML = '';
             if (panel) panel.classList.add('hidden');
             if (addBtn) addBtn.disabled = true;
@@ -5914,11 +6068,13 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
 
-        function renderJiraWorklogList(worklogs, issueKey) {
+        function renderJiraWorklogList(worklogs, issueKey, which) {
             jiraFetchedWorklogs = worklogs;
-            const list = document.getElementById('jira-worklog-list');
-            const panel = document.getElementById('jira-worklog-panel');
-            const addBtn = document.getElementById('jira-add-worklogs-btn');
+            jiraFetchedWorklogsContext = which || 'modal';
+            const ctx = jiraGetContext(which || 'modal');
+            const list = ctx.listEl();
+            const panel = ctx.panelEl();
+            const addBtn = ctx.addBtnEl();
             if (!list || !panel) return;
 
             list.innerHTML = '';
@@ -5948,6 +6104,43 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
             panel.classList.remove('hidden');
             if (addBtn) addBtn.disabled = false;
+        }
+
+        function sumJiraWorklogSeconds(worklogs) {
+            return worklogs.reduce((total, w) => total + (Number(w && w.timeSpentSeconds) || 0), 0);
+        }
+
+        function secondsToHHMM(totalSeconds) {
+            const total = Math.max(0, Math.round(Number(totalSeconds) || 0));
+            if (!total) return '';
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function applyJiraTimeFromWorklogs(timeEl, worklogs) {
+            if (!timeEl || !worklogs.length) return false;
+            const seconds = sumJiraWorklogSeconds(worklogs);
+            if (seconds <= 0) return false;
+            const newTime = secondsToHHMM(seconds);
+            const current = timeEl.value.trim();
+            if (!current) {
+                timeEl.value = newTime;
+                return true;
+            }
+            if (current === newTime) return false;
+            if (confirm(`Replace current time (${current}) with Jira total (${newTime})?\n\nChoose OK to replace time, or Cancel to add notes only.`)) {
+                timeEl.value = newTime;
+                return true;
+            }
+            return false;
+        }
+
+        function appendJiraWorklogsToNotes(notesEl, lines) {
+            if (!notesEl || !lines.length) return;
+            const current = notesEl.value.trim();
+            notesEl.value = current ? `${current}\n${lines.join('\n')}` : lines.join('\n');
+            notesEl.focus();
         }
 
         async function showJiraSettingsModal() {
@@ -6037,7 +6230,9 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             showToast('Jira API token removed.', 'info');
         }
 
-        async function handleJiraFetchWorklogsClick() {
+        async function fetchJiraWorklogsForContext(which) {
+            if (!isJiraFeaturesAvailable()) return;
+            const ctx = jiraGetContext(which);
             const settings = await getStoredJiraSettings();
             if (!settings || !settings.token) {
                 showToast('Configure Jira settings first (email + API token).', 'error', 7000);
@@ -6050,10 +6245,9 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return;
             }
 
-            const issueKeyEl = document.getElementById('jira-issue-key');
-            const dateEl = document.getElementById('entry-date');
+            const issueKeyEl = ctx.issueKeyEl();
             const issueKey = issueKeyEl ? issueKeyEl.value.trim().toUpperCase() : '';
-            const dateStr = dateEl ? dateEl.value : '';
+            const dateStr = ctx.getDateStr();
 
             if (!issueKey) {
                 showToast('Enter a Jira issue key (e.g. PROJ-123).', 'error');
@@ -6070,10 +6264,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return;
             }
 
-            const btn = document.getElementById('jira-fetch-worklogs-btn');
-            const list = document.getElementById('jira-worklog-list');
-            const panel = document.getElementById('jira-worklog-panel');
-            const addBtn = document.getElementById('jira-add-worklogs-btn');
+            const btn = ctx.fetchBtnEl();
+            const list = ctx.listEl();
+            const panel = ctx.panelEl();
+            const addBtn = ctx.addBtnEl();
             if (list) list.innerHTML = '';
             if (panel) panel.classList.add('hidden');
             if (addBtn) addBtn.disabled = true;
@@ -6087,7 +6281,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             try {
                 const all = await fetchAllJiraWorklogs(issueKey, settings);
                 const filtered = filterWorklogsByDate(all, dateStr);
-                renderJiraWorklogList(filtered, issueKey);
+                rememberJiraIssueKey(issueKey);
+                renderJiraWorklogList(filtered, issueKey, which);
+                if (which === 'quick' && descQuickEditContext && descQuickEditContext.anchorEl) {
+                    requestAnimationFrame(() => positionDescQuickEdit(descQuickEditContext.anchorEl));
+                }
                 showToast(
                     filtered.length ? `Found ${filtered.length} worklog(s) for ${dateStr}.` : `No worklogs on ${dateStr} for ${issueKey}.`,
                     filtered.length ? 'success' : 'info',
@@ -6095,7 +6293,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 );
             } catch (e) {
                 const msg = e.message || String(e);
-                if (/API token|authentication|Jira settings/i.test(msg)) {
+                if (/401|403|credentials|API token|Jira settings/i.test(msg)) {
                     showJiraSettingsModal();
                 }
                 showToast(msg, 'error', 8000);
@@ -6107,9 +6305,18 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
 
-        function handleJiraAddWorklogsClick() {
-            const list = document.getElementById('jira-worklog-list');
-            const issueKeyEl = document.getElementById('jira-issue-key');
+        async function handleJiraFetchWorklogsClick() {
+            await fetchJiraWorklogsForContext('modal');
+        }
+
+        async function handleQeJiraFetchWorklogsClick() {
+            await fetchJiraWorklogsForContext('quick');
+        }
+
+        function addJiraWorklogsForContext(which) {
+            const ctx = jiraGetContext(which);
+            const list = ctx.listEl();
+            const issueKeyEl = ctx.issueKeyEl();
             const issueKey = issueKeyEl ? issueKeyEl.value.trim().toUpperCase() : '';
             const checked = list ? [...list.querySelectorAll('.jira-worklog-checkbox:checked')] : [];
 
@@ -6118,19 +6325,27 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 return;
             }
 
-            const lines = checked.map(cb => {
+            const selectedWorklogs = checked.map(cb => {
                 const idx = parseInt(cb.value, 10);
-                const worklog = jiraFetchedWorklogs[idx];
-                return worklog ? formatWorklogLine(worklog, issueKey) : '';
+                return jiraFetchedWorklogs[idx];
             }).filter(Boolean);
 
-            const notes = document.getElementById('notes');
-            if (notes && lines.length) {
-                const current = notes.value.trim();
-                notes.value = current ? `${current}\n${lines.join('\n')}` : lines.join('\n');
-                notes.focus();
-            }
-            showToast('Worklogs appended to Notes.', 'success');
+            const lines = selectedWorklogs.map(w => formatWorklogLine(w, issueKey)).filter(Boolean);
+            appendJiraWorklogsToNotes(ctx.notesEl(), lines);
+
+            const timeUpdated = applyJiraTimeFromWorklogs(ctx.timeEl(), selectedWorklogs);
+            showToast(
+                timeUpdated ? 'Worklogs added to notes and time updated.' : 'Worklogs appended to notes.',
+                'success'
+            );
+        }
+
+        function handleJiraAddWorklogsClick() {
+            addJiraWorklogsForContext('modal');
+        }
+
+        function handleQeJiraAddWorklogsClick() {
+            addJiraWorklogsForContext('quick');
         }
 
         async function storeEncryptedApiKey(storageKey, apiKey) {
@@ -8039,6 +8254,9 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             timeInput.value = hours > 0 ? hoursToHHMM(hours) : '';
             descQuickEditContext = { dayEntry, firstEntry, dayDateStr, hoursInput, dayCell, anchorEl };
 
+            clearJiraWorklogPanel('quick');
+            populateJiraIssueKeyDatalist();
+
             pop.classList.remove('hidden');
             pop.hidden = false;
             requestAnimationFrame(() => {
@@ -8451,7 +8669,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (favGroup) favGroup.style.display = '';
             populateEntryFavoritesSelect();
             clearNotesAiSuggestions();
-            clearJiraWorklogPanel();
+            clearJiraWorklogPanel('modal');
+            populateJiraIssueKeyDatalist();
             clearEntryFormError();
             
             if (entry) {
@@ -8521,7 +8740,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const favGroup = document.getElementById('entry-favorites-group');
             if (favGroup) favGroup.style.display = 'none';
             clearEntryFormError();
-            clearJiraWorklogPanel();
+            clearJiraWorklogPanel('modal');
+            populateJiraIssueKeyDatalist();
             
             // Get clientId from projectTaskInfo or find from project
             let clientId = projectTaskInfo.AccountClientId;
@@ -8584,7 +8804,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const fs = document.getElementById('entry-favorite-select');
             if (fs) fs.value = '';
             clearNotesAiSuggestions();
-            clearJiraWorklogPanel();
+            clearJiraWorklogPanel('modal');
+            populateJiraIssueKeyDatalist();
             clearEntryFormError();
             document.getElementById('entry-form').reset();
             // Re-enable readonly fields
