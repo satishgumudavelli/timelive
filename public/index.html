@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600;700;800&family=Huninn&display=swap" rel="stylesheet">
     <title>TimeLive Timesheet</title>
+    <link rel="manifest" href="/manifest.json">
     <script>
         (function () {
             try {
@@ -1479,6 +1480,16 @@
             }
         }
 
+        .project-color-dot {
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+            flex: none;
+        }
+
         .week-nav-center {
             display: flex;
             align-items: center;
@@ -2818,6 +2829,7 @@
                 <input type="date" id="export-date-from" class="header-date-input no-print" title="Export from (optional)">
                 <input type="date" id="export-date-to" class="header-date-input no-print" title="Export to (optional)">
                 <button id="csv-import-btn" class="btn btn-secondary">Import CSV</button>
+                <button type="button" id="search-entries-btn" class="btn btn-secondary" title="Search past entries across weeks">Search</button>
                 <button id="logout-btn" class="btn btn-secondary">Logout</button>
                 <button id="refresh-btn" class="btn btn-primary">Refresh</button>
             </div>
@@ -3059,6 +3071,53 @@
             </div>
         </div>
 
+        <!-- Search / Filter Past Entries Modal (also used for cross-week bulk edit) -->
+        <div id="search-entries-modal" class="modal hidden">
+            <div class="modal-content modal-content-wide">
+                <div class="modal-header">
+                    <h3>Search entries</h3>
+                    <button class="modal-close" id="close-search-entries-modal">&times;</button>
+                </div>
+                <div class="form-group" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end;">
+                    <div>
+                        <label for="search-entries-from">From</label>
+                        <input type="date" id="search-entries-from">
+                    </div>
+                    <div>
+                        <label for="search-entries-to">To</label>
+                        <input type="date" id="search-entries-to">
+                    </div>
+                    <div style="flex:1; min-width:200px;">
+                        <label for="search-entries-text">Client / project / task / notes text</label>
+                        <input type="text" id="search-entries-text" placeholder="Search text…" autocomplete="off">
+                    </div>
+                    <button type="button" class="btn btn-primary" id="run-search-entries-btn">Search</button>
+                </div>
+                <div id="search-entries-status" style="font-size:13px; color:#666; margin:6px 0;"></div>
+                <div id="search-entries-bulk-bar" style="display:none; gap:8px; align-items:center; margin:8px 0; flex-wrap:wrap;">
+                    <select id="search-bulk-client"><option value="">Change client to…</option></select>
+                    <select id="search-bulk-project"><option value="">Change project to…</option></select>
+                    <select id="search-bulk-task"><option value="">Change task to…</option></select>
+                    <button type="button" class="btn btn-secondary btn-small" id="apply-search-bulk-edit-btn">Apply to selected</button>
+                    <button type="button" class="btn btn-secondary btn-small" id="delete-search-selected-btn">Delete selected</button>
+                </div>
+                <div class="timesheet-grid-container">
+                    <table class="timesheet-grid" id="search-entries-grid">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="search-select-all-rows" aria-label="Select all results"></th>
+                                <th>Date</th>
+                                <th>Client • Project • Task</th>
+                                <th>Hours</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody id="search-entries-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Add/Edit Entry Modal -->
         <div id="entry-modal" class="modal hidden">
             <div class="modal-content">
@@ -3112,6 +3171,12 @@
                             <button type="button" class="btn-preset" data-hours="8">8h</button>
                         </div>
                         <small style="color: #666; font-size: 12px;">HH:MM, or shorthand: 15 → 00:15, 145 → 01:45</small>
+                    </div>
+                    <div class="form-group" id="entry-repeat-weekdays-group">
+                        <label style="display:flex;align-items:center;gap:8px;font-weight:normal;">
+                            <input type="checkbox" id="entry-repeat-weekdays">
+                            Repeat this task on this week's remaining weekdays
+                        </label>
                     </div>
                     <div class="form-group jira-worklog-section jira-features-host hidden">
                         <label for="jira-issue-key">Jira worklogs</label>
@@ -4299,6 +4364,17 @@
             return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        // Deterministic hash-to-color for project/client chips (no picker UI, just stable coloring).
+        function colorForKey(key) {
+            const str = String(key || '');
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = (hash * 31 + str.charCodeAt(i)) | 0;
+            }
+            const hue = Math.abs(hash) % 360;
+            return `hsl(${hue}, 62%, 45%)`;
+        }
+
         function entryToRestorePayload(entry) {
             if (!entry) return null;
             const hours = parseTimeToHours(entry.TotalTime);
@@ -4604,8 +4680,10 @@
             const sel = document.getElementById('entry-favorite-select');
             if (!sel) return;
             const favs = loadEntryFavorites();
+            // Sort by use count descending (most-used first), keep original index for apply.
+            const ordered = favs.map((f, idx) => ({ f, idx })).sort((a, b) => (b.f.useCount || 0) - (a.f.useCount || 0));
             sel.innerHTML = '<option value="">— Saved rows —</option>';
-            favs.forEach((f, idx) => {
+            ordered.forEach(({ f, idx }) => {
                 const opt = document.createElement('option');
                 opt.value = String(idx);
                 opt.textContent = f.label || `Favorite ${idx + 1}`;
@@ -4625,6 +4703,8 @@
             const projectId = String(f.projectId || '');
             const taskId = String(f.taskId || '');
             if (!clientId || !projectId || !taskId) return;
+            f.useCount = (f.useCount || 0) + 1;
+            saveEntryFavorites(favs);
             document.getElementById('client').value = clientId;
             await loadProjectsForClient(parseInt(clientId, 10));
             document.getElementById('project').value = projectId;
@@ -4721,8 +4801,57 @@
             body.innerHTML = `
                 <div class="week-summary-col"><h4>By client</h4><ul>${listItems(byClient)}</ul></div>
                 <div class="week-summary-col"><h4>By project</h4><ul>${listItems(byProject)}</ul></div>
+                <div class="week-summary-col hours-chart-col" style="grid-column:1/-1"><h4>Hours by project (this week)</h4><canvas id="week-hours-chart" class="hours-chart" height="120"></canvas></div>
             `;
+            _lastWeekChartData = byProject;
+            drawHoursBarChart('week-hours-chart', byProject);
         }
+
+        // Plain <canvas> bar chart, no chart library. No budgeted/expected-hours field exists in
+        // stored data (grepped for "budget" — none), so this shows raw totals only, no over/under view.
+        function drawHoursBarChart(canvasId, dataObj) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas || !canvas.getContext) return;
+            const keys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]).slice(0, 8);
+            const dpr = window.devicePixelRatio || 1;
+            const cssWidth = canvas.parentElement ? canvas.parentElement.clientWidth || 400 : 400;
+            const cssHeight = 120;
+            canvas.width = cssWidth * dpr;
+            canvas.height = cssHeight * dpr;
+            canvas.style.width = cssWidth + 'px';
+            canvas.style.height = cssHeight + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, cssWidth, cssHeight);
+            if (!keys.length) {
+                ctx.fillStyle = '#888';
+                ctx.font = '12px sans-serif';
+                ctx.fillText('No hours logged.', 8, 20);
+                return;
+            }
+            const max = Math.max(...keys.map(k => dataObj[k]), 0.01);
+            const barAreaH = cssHeight - 28;
+            const barW = Math.max(18, Math.min(48, (cssWidth - 16) / keys.length - 8));
+            const gap = (cssWidth - 16 - barW * keys.length) / Math.max(1, keys.length - 1 || 1);
+            let x = 8;
+            keys.forEach((k) => {
+                const h = dataObj[k];
+                const barH = Math.max(2, (h / max) * barAreaH);
+                ctx.fillStyle = colorForKey(`p:${k}`);
+                ctx.fillRect(x, barAreaH - barH + 8, barW, barH);
+                ctx.fillStyle = '#666';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                const label = k.length > 10 ? k.slice(0, 9) + '…' : k;
+                ctx.fillText(label, x + barW / 2, cssHeight - 6);
+                ctx.fillStyle = '#333';
+                ctx.fillText(hoursToHHMM(h) || '0:00', x + barW / 2, barAreaH - barH + 2);
+                x += barW + gap;
+            });
+        }
+
+        let _lastWeekChartData = null;
+        let _lastMonthChartData = null;
 
         let _monthSummaryCache = null;
 
@@ -4778,7 +4907,10 @@
                 <div class="week-summary-col"><h4>By client</h4><ul>${listItems(byClient)}</ul></div>
                 <div class="week-summary-col"><h4>By project</h4><ul>${listItems(byProject)}</ul></div>
                 <div class="week-summary-col" style="grid-column:1/-1"><h4>Month total</h4><ul><li>All: <strong>${hoursToHHMM(totalH) || '00:00'}</strong></li></ul></div>
+                <div class="week-summary-col hours-chart-col" style="grid-column:1/-1"><h4>Hours by project (this month)</h4><canvas id="month-hours-chart" class="hours-chart" height="120"></canvas></div>
             `;
+            _lastMonthChartData = byProject;
+            drawHoursBarChart('month-hours-chart', byProject);
         }
 
         function getMondayWeekStartFromDate(inputDate) {
@@ -5072,11 +5204,19 @@
                     if (hours <= 0) {
                         throw new Error('Time must be greater than 00:00');
                     }
+                    const taskIdVal = task.AccountProjectTaskId || task.Id;
+                    const dateStr = formatDateForAPI(entryDate);
+                    const dupe = findDuplicateEntry(dateStr, taskIdVal, hours, null);
+                    if (dupe && !confirm(`Row ${i + 2}: same task on ${dateStr} for ${entry.time} already exists. Import anyway?`)) {
+                        errorCount++;
+                        errors.push(`Row ${i + 2}: skipped (duplicate of existing entry).`);
+                        continue;
+                    }
                     const entryData = {
                         AccountProjectId: project.AccountProjectId || project.Id,
-                        AccountProjectTaskId: task.AccountProjectTaskId || task.Id,
-                        EntryDate: formatDateForAPI(entryDate),
-                        TimeEntryDate: formatDateForAPI(entryDate),
+                        AccountProjectTaskId: taskIdVal,
+                        EntryDate: dateStr,
+                        TimeEntryDate: dateStr,
                         Hours: hours,
                         Description: entry.notes || '',
                         Notes: entry.notes || '',
@@ -5242,6 +5382,19 @@
                 });
             });
             bindEl('csv-import-btn', 'click', () => showCSVImportModal());
+            bindEl('search-entries-btn', 'click', () => {
+                showSearchEntriesModal();
+                populateSearchBulkClientSelect();
+            });
+            bindEl('close-search-entries-modal', 'click', hideSearchEntriesModal);
+            bindEl('run-search-entries-btn', 'click', runSearchEntries);
+            bindEl('search-select-all-rows', 'change', (e) => {
+                document.querySelectorAll('.search-row-select').forEach(cb => { cb.checked = e.target.checked; });
+            });
+            bindEl('search-bulk-client', 'change', handleSearchBulkClientChange);
+            bindEl('search-bulk-project', 'change', handleSearchBulkProjectChange);
+            bindEl('apply-search-bulk-edit-btn', 'click', handleApplySearchBulkEdit);
+            bindEl('delete-search-selected-btn', 'click', handleDeleteSearchSelected);
             bindEl('close-modal', 'click', hideEntryModal);
             bindEl('close-csv-modal', 'click', hideCSVImportModal);
             bindEl('support-btn', 'click', showSupportModal);
@@ -5360,6 +5513,12 @@
             });
             bindEl('save-week-template-btn', 'click', handleSaveWeekTemplateClick);
             bindEl('apply-week-template-btn', 'click', handleApplyWeekTemplateClick);
+            bindEl('week-summary-details', 'toggle', (e) => {
+                if (e.target.open && _lastWeekChartData) drawHoursBarChart('week-hours-chart', _lastWeekChartData);
+            });
+            bindEl('month-summary-details', 'toggle', (e) => {
+                if (e.target.open && _lastMonthChartData) drawHoursBarChart('month-hours-chart', _lastMonthChartData);
+            });
             
             // Time preset buttons
             document.querySelectorAll('.btn-preset').forEach(btn => {
@@ -8228,6 +8387,217 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             updateDeleteSelectedButtonState();
         }
 
+        // --- Global search across weeks (#4) + bulk edit across weeks (#5) ---
+        // Reuses api.getTimesheetEntries(from, to, employeeId) — the same wide-range fetch
+        // copySelectedWeekToCurrent() already uses — no new backend endpoint.
+        let searchEntriesResults = [];
+
+        function showSearchEntriesModal() {
+            const modal = document.getElementById('search-entries-modal');
+            if (!modal) return;
+            const from = document.getElementById('search-entries-from');
+            const to = document.getElementById('search-entries-to');
+            if (from && !from.value) {
+                const d = new Date();
+                d.setDate(d.getDate() - 30);
+                from.value = formatDateForAPI(d);
+            }
+            if (to && !to.value) to.value = formatDateForAPI(new Date());
+            modal.classList.remove('hidden');
+        }
+
+        function hideSearchEntriesModal() {
+            const modal = document.getElementById('search-entries-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function runSearchEntries() {
+            const from = document.getElementById('search-entries-from').value;
+            const to = document.getElementById('search-entries-to').value;
+            const q = (document.getElementById('search-entries-text').value || '').trim().toLowerCase();
+            const statusDiv = document.getElementById('search-entries-status');
+            const body = document.getElementById('search-entries-body');
+            if (!from || !to) {
+                statusDiv.textContent = 'Choose a from/to date.';
+                return;
+            }
+            if (!api || !currentEmployee) {
+                statusDiv.textContent = 'Sign in first.';
+                return;
+            }
+            statusDiv.textContent = 'Searching…';
+            body.innerHTML = '';
+            try {
+                const entries = await api.getTimesheetEntries(from, to, currentEmployee.AccountEmployeeId);
+                searchEntriesResults = (entries || []).filter(entry => {
+                    const h = parseTimeToHours(entry.TotalTime);
+                    if (h <= 0) return false;
+                    if (!q) return true;
+                    const hay = [entry.ClientName, entry.ProjectName, entry.TaskName, entry.TimeEntryDescription, entry.Description]
+                        .filter(Boolean).join(' ').toLowerCase();
+                    return hay.includes(q);
+                });
+                renderSearchEntriesResults();
+                statusDiv.textContent = `${searchEntriesResults.length} matching entr${searchEntriesResults.length === 1 ? 'y' : 'ies'}.`;
+            } catch (err) {
+                statusDiv.textContent = 'Search failed: ' + (err && err.message ? err.message : String(err));
+            }
+        }
+
+        function renderSearchEntriesResults() {
+            const body = document.getElementById('search-entries-body');
+            body.innerHTML = '';
+            searchEntriesResults.forEach((entry, idx) => {
+                const raw = entry.TimeEntryDate || entry.EntryDate;
+                const dateStr = raw ? formatDateForAPI(new Date(raw)) : '—';
+                const hours = parseTimeToHours(entry.TotalTime);
+                const label = [entry.ClientName, entry.ProjectName, entry.TaskName].filter(Boolean).join(' • ');
+                const notes = entry.TimeEntryDescription || entry.Description || '';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="checkbox" class="search-row-select" data-idx="${idx}"></td>
+                    <td>${escapeHtml(dateStr)}</td>
+                    <td><span class="project-color-dot" style="background:${colorForKey('p:' + (entry.AccountProjectId || entry.ProjectName))}"></span>${escapeHtml(label)}</td>
+                    <td>${escapeHtml(hoursToHHMM(hours) || '')}</td>
+                    <td>${escapeHtml(notes)}</td>
+                `;
+                body.appendChild(tr);
+            });
+            const bulkBar = document.getElementById('search-entries-bulk-bar');
+            if (bulkBar) bulkBar.style.display = searchEntriesResults.length ? 'flex' : 'none';
+        }
+
+        function getSelectedSearchEntries() {
+            const idxs = Array.from(document.querySelectorAll('.search-row-select:checked')).map(cb => parseInt(cb.dataset.idx, 10));
+            return idxs.map(i => searchEntriesResults[i]).filter(Boolean);
+        }
+
+        async function populateSearchBulkClientSelect() {
+            const sel = document.getElementById('search-bulk-client');
+            if (!sel) return;
+            if (!clients.length) await loadClients();
+            sel.innerHTML = '<option value="">Change client to…</option>';
+            clients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.AccountClientId || c.Id;
+                opt.textContent = c.ClientName || c.Name || `Client ${opt.value}`;
+                sel.appendChild(opt);
+            });
+        }
+
+        async function handleSearchBulkClientChange() {
+            const clientId = parseInt(document.getElementById('search-bulk-client').value, 10);
+            const projSel = document.getElementById('search-bulk-project');
+            const taskSel = document.getElementById('search-bulk-task');
+            projSel.innerHTML = '<option value="">Change project to…</option>';
+            taskSel.innerHTML = '<option value="">Change task to…</option>';
+            if (!clientId || !currentEmployee) return;
+            const projectsForClient = await api.getProjectsByClient(clientId, currentEmployee.AccountEmployeeId);
+            (projectsForClient || []).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.AccountProjectId || p.Id;
+                opt.textContent = p.ProjectName || p.Name || `Project ${opt.value}`;
+                projSel.appendChild(opt);
+            });
+        }
+
+        async function handleSearchBulkProjectChange() {
+            const projectId = parseInt(document.getElementById('search-bulk-project').value, 10);
+            const taskSel = document.getElementById('search-bulk-task');
+            taskSel.innerHTML = '<option value="">Change task to…</option>';
+            if (!projectId || !currentEmployee) return;
+            const tasksForProject = await api.getTasksByProject(projectId, currentEmployee.AccountEmployeeId);
+            (tasksForProject || []).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.AccountProjectTaskId || t.Id;
+                opt.textContent = t.TaskName || t.Name || `Task ${opt.value}`;
+                taskSel.appendChild(opt);
+            });
+        }
+
+        async function handleApplySearchBulkEdit() {
+            const selected = getSelectedSearchEntries();
+            if (!selected.length) {
+                showToast('Select at least one search result to edit.', 'error');
+                return;
+            }
+            const clientId = document.getElementById('search-bulk-client').value;
+            const projectId = document.getElementById('search-bulk-project').value;
+            const taskId = document.getElementById('search-bulk-task').value;
+            if (!projectId && !taskId) {
+                showToast('Choose a project and/or task to apply.', 'error');
+                return;
+            }
+            if (!confirm(`Apply this change to ${selected.length} selected entr${selected.length === 1 ? 'y' : 'ies'}?`)) return;
+            pushAppBusy('Updating entries…');
+            let ok = 0, fail = 0;
+            try {
+                for (const entry of selected) {
+                    const entryId = entry.AccountEmployeeTimeEntryId || entry.Id;
+                    if (!entryId) continue;
+                    const raw = entry.TimeEntryDate || entry.EntryDate;
+                    const dateStr = raw ? formatDateForAPI(new Date(raw)) : null;
+                    const entryData = {
+                        AccountProjectId: projectId ? parseInt(projectId, 10) : entry.AccountProjectId,
+                        AccountProjectTaskId: taskId ? parseInt(taskId, 10) : entry.AccountProjectTaskId,
+                        EntryDate: dateStr,
+                        TimeEntryDate: dateStr,
+                        Hours: parseTimeToHours(entry.TotalTime),
+                        Description: entry.TimeEntryDescription || entry.Description || '',
+                        Notes: entry.TimeEntryDescription || entry.Description || ''
+                    };
+                    try {
+                        await api.updateTimesheetEntry(entryId, entryData);
+                        ok++;
+                    } catch (err) {
+                        fail++;
+                        console.error('Bulk edit failed for', entryId, err);
+                    }
+                }
+                showToast(`Updated ${ok} entr${ok === 1 ? 'y' : 'ies'}.${fail ? ' ' + fail + ' failed.' : ''}`, fail ? 'error' : 'success');
+                await runSearchEntries();
+                await loadTimesheetData();
+            } finally {
+                popAppBusy();
+            }
+        }
+
+        async function handleDeleteSearchSelected() {
+            const selected = getSelectedSearchEntries();
+            if (!selected.length) {
+                showToast('Select at least one search result to delete.', 'error');
+                return;
+            }
+            if (!confirm(`Delete ${selected.length} selected entr${selected.length === 1 ? 'y' : 'ies'}? You can Undo for a short time after.`)) return;
+            pushAppBusy('Deleting entries…');
+            let ok = 0, fail = 0;
+            const undoPayloads = [];
+            try {
+                for (const entry of selected) {
+                    const entryId = entry.AccountEmployeeTimeEntryId || entry.Id;
+                    if (!entryId) continue;
+                    try {
+                        await api.deleteTimesheetEntry(entryId);
+                        const p = entryToRestorePayload(entry);
+                        if (p) undoPayloads.push(p);
+                        ok++;
+                    } catch (err) {
+                        fail++;
+                        console.error('Bulk delete failed for', entryId, err);
+                    }
+                }
+                if (undoPayloads.length) {
+                    showUndoToast(`Deleted ${ok} entr${ok === 1 ? 'y' : 'ies'}.${fail ? ' ' + fail + ' failed.' : ''}`, undoPayloads);
+                } else {
+                    showToast(`Deleted ${ok} entr${ok === 1 ? 'y' : 'ies'}.${fail ? ' ' + fail + ' failed.' : ''}`, fail ? 'error' : 'success');
+                }
+                await runSearchEntries();
+                await loadTimesheetData();
+            } finally {
+                popAppBusy();
+            }
+        }
+
         // Render Functions
         function renderTimesheetGrid() {
             hideDayCellTooltip();
@@ -8595,7 +8965,13 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 displayText = '-';
             }
             
-            projectTaskCell.textContent = displayText;
+            const colorKey = firstEntry.AccountProjectId != null ? `p:${firstEntry.AccountProjectId}` : `c:${clientName}`;
+            const dot = document.createElement('span');
+            dot.className = 'project-color-dot';
+            dot.style.background = colorForKey(colorKey);
+            dot.title = projectName || clientName || '';
+            projectTaskCell.appendChild(dot);
+            projectTaskCell.appendChild(document.createTextNode(displayText));
             row.appendChild(projectTaskCell);
             
             let totalHours = 0;
@@ -8854,6 +9230,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
 
             const favGroup = document.getElementById('entry-favorites-group');
             if (favGroup) favGroup.style.display = '';
+            const repeatGroup = document.getElementById('entry-repeat-weekdays-group');
+            const repeatCb = document.getElementById('entry-repeat-weekdays');
+            if (repeatGroup) repeatGroup.style.display = entry ? 'none' : '';
+            if (repeatCb) repeatCb.checked = false;
             populateEntryFavoritesSelect();
             clearNotesAiSuggestions();
             clearJiraWorklogPanel('modal');
@@ -8929,6 +9309,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const deleteBtn = document.getElementById('delete-entry-btn');
             const favGroup = document.getElementById('entry-favorites-group');
             if (favGroup) favGroup.style.display = '';
+            const repeatGroup = document.getElementById('entry-repeat-weekdays-group');
+            const repeatCb = document.getElementById('entry-repeat-weekdays');
+            if (repeatGroup) repeatGroup.style.display = entry ? 'none' : '';
+            if (repeatCb) repeatCb.checked = false;
             populateEntryFavoritesSelect();
             clearEntryFormError();
             clearJiraWorklogPanel('modal');
@@ -9201,6 +9585,41 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
 
+        // Duplicate-entry detection: same date+task(+hours) already loaded this week. Warn-only, never blocks.
+        function findDuplicateEntry(dateStr, taskId, hours, excludeEntryId) {
+            if (!timesheetEntries || !timesheetEntries.length) return null;
+            return timesheetEntries.find(entry => {
+                const id = String(entry.AccountEmployeeTimeEntryId || entry.Id || '');
+                if (excludeEntryId && id === String(excludeEntryId)) return false;
+                const raw = entry.TimeEntryDate || entry.EntryDate;
+                if (!raw) return false;
+                if (formatDateForAPI(new Date(raw)) !== dateStr) return false;
+                if ((entry.AccountProjectTaskId || '') != taskId) return false;
+                return Math.abs(parseTimeToHours(entry.TotalTime) - hours) < 0.01;
+            }) || null;
+        }
+
+        // Lightweight recurrence: "repeat this task on this week's remaining weekdays" — no RRULE engine.
+        async function createRepeatWeekdayEntries(sourceDateStr, entryDataTemplate) {
+            const weekDays = getWeekDays();
+            const sourceDate = new Date(sourceDateStr);
+            let created = 0;
+            for (let i = 0; i <= 4; i++) {
+                const day = weekDays[i];
+                if (!day) continue;
+                const dateStr = formatDateForAPI(day);
+                if (dateStr <= formatDateForAPI(sourceDate)) continue; // only remaining weekdays after the one just saved
+                const entryData = Object.assign({}, entryDataTemplate, { EntryDate: dateStr, TimeEntryDate: dateStr });
+                try {
+                    await api.createTimesheetEntry(entryData);
+                    created++;
+                } catch (err) {
+                    console.error('Repeat weekday entry failed for', dateStr, err);
+                }
+            }
+            return created;
+        }
+
         async function handleEntrySubmit(e) {
             e.preventDefault();
             clearEntryFormError();
@@ -9256,19 +9675,34 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 Notes: notes,
                 TimeEntryDescription: notes
             };
-            
+
             if (currentEmployee) {
                 entryData.AccountEmployeeId = currentEmployee.AccountEmployeeId;
             }
-            
+
+            const dupe = findDuplicateEntry(entryDate, taskId, hours, entryId);
+            if (dupe && !confirm(`Same task on ${entryDate} for ${hoursToHHMM(hours)} already exists. Add anyway?`)) {
+                return;
+            }
+
+            const repeatWeekdaysEl = document.getElementById('entry-repeat-weekdays');
+            const repeatWeekdays = !entryId && repeatWeekdaysEl && repeatWeekdaysEl.checked;
+
             pushAppBusy(entryId ? 'Updating entry…' : 'Saving entry…');
             try {
                 const result = entryId
                     ? await api.updateTimesheetEntry(entryId, entryData)
                     : await api.createTimesheetEntry(entryData);
 
-                const successMsg = api.getApiSuccessMessage(result)
+                let successMsg = api.getApiSuccessMessage(result)
                     || (entryId ? 'Time entry Update Succesfully.' : 'Time entry Add Succesfully.');
+
+                if (repeatWeekdays) {
+                    const repeatCount = await createRepeatWeekdayEntries(entryDate, entryData);
+                    if (repeatCount > 0) {
+                        successMsg += ` (+${repeatCount} repeated on remaining weekdays)`;
+                    }
+                }
 
                 showEntryFormMessage(successMsg, 'success');
                 showToast(successMsg, 'success', 3500);
@@ -10075,6 +10509,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
  
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js');
+        }
     </script>
 </body>
 </html>
