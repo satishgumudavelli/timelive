@@ -2817,7 +2817,7 @@
                 </span>
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
                 <a id="jira-sync-host-link" class="jira-sync-host-link hidden" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer" title="Jira worklog sync runs on the Cloudflare Workers site">For Jira sync, open this site</a>
-                <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-features-host hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
+                <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-host-only hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                     <span id="support-unread-badge" class="support-unread-badge hidden" aria-label="Unread support replies">0</span>
@@ -5961,6 +5961,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             const available = isJiraFeaturesAvailable();
             document.querySelectorAll('.jira-features-host').forEach((el) => {
                 el.classList.toggle('hidden', !available);
+            });
+            // Jira settings entry point (where the token is added): host-only, not token-gated.
+            const hostOk = isJiraSyncCanonicalHost() || isLocalWranglerDevHost();
+            document.querySelectorAll('.jira-host-only').forEach((el) => {
+                el.classList.toggle('hidden', !hostOk);
             });
         }
 
