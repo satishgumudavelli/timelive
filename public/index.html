@@ -5903,7 +5903,20 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
         }
 
         function isJiraFeaturesAvailable() {
-            return isJiraSyncCanonicalHost() || isLocalWranglerDevHost();
+            if (!isJiraSyncCanonicalHost() && !isLocalWranglerDevHost()) return false;
+            return hasJiraTokenConfigured();
+        }
+
+        // Sync presence check (no decrypt) — just needs to know a token was saved, not its value.
+        function hasJiraTokenConfigured() {
+            try {
+                const stored = localStorage.getItem(JIRA_SETTINGS_STORAGE);
+                if (!stored) return false;
+                const parsed = JSON.parse(stored);
+                return !!(parsed && parsed.baseUrl && parsed.email && parsed.tokenEnc);
+            } catch (e) {
+                return false;
+            }
         }
 
         function isJiraSyncNoticeDismissed() {
@@ -6560,6 +6573,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             await saveJiraSettingsToStorage(baseUrl, email, tokenToSave, proxyUrl);
             hideJiraSettingsModal();
             showToast('Jira settings saved.', 'success');
+            updateJiraFeaturesVisibility();
         }
 
         async function handleClearJiraTokenClick() {
@@ -6570,6 +6584,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 tokenInput.placeholder = 'Atlassian API token';
             }
             showToast('Jira API token removed.', 'info');
+            updateJiraFeaturesVisibility();
         }
 
         async function fetchJiraWorklogsForContext(which) {
