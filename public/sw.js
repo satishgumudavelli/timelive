@@ -1,5 +1,5 @@
 // Minimal cache-first app-shell service worker. No write/offline-sync support — GET only.
-const CACHE_NAME = 'timelive-shell-v1';
+const CACHE_NAME = 'timelive-shell-v2';
 const SHELL_URLS = ['/', '/index.html', '/manifest.json', '/timesheet_sample.csv'];
 
 self.addEventListener('install', (event) => {
