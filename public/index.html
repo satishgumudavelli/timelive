@@ -6592,8 +6592,20 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             updateJiraFeaturesVisibility();
         }
 
+        const jiraWorklogFetchInFlight = {};
+
         async function fetchJiraWorklogsForContext(which) {
             if (!isJiraFeaturesAvailable()) return;
+            if (jiraWorklogFetchInFlight[which]) return; // ignore re-trigger (rapid select change / double click) while a fetch is already running
+            jiraWorklogFetchInFlight[which] = true;
+            try {
+                await fetchJiraWorklogsForContextInner(which);
+            } finally {
+                jiraWorklogFetchInFlight[which] = false;
+            }
+        }
+
+        async function fetchJiraWorklogsForContextInner(which) {
             const ctx = jiraGetContext(which);
             const settings = await getStoredJiraSettings();
             if (!settings || !settings.token) {
