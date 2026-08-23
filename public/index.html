@@ -1490,24 +1490,23 @@
             flex: none;
         }
 
-        .timesheet-grid .row-select-cell {
-            display: flex;
+        .row-edit-project-btn {
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 6px;
-        }
-        .row-edit-project-btn {
-            display: inline-block;
             margin: 0;
+            flex: none;
             width: 20px;
             height: 20px;
-            line-height: 18px;
+            min-width: 20px;
+            min-height: 20px;
             padding: 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
+            border: var(--border-w) solid var(--ink);
+            border-radius: 5px;
             background: #fff;
-            color: #555;
+            color: var(--ink);
             font-size: 12px;
+            line-height: 1;
             cursor: pointer;
         }
         .row-edit-project-btn:hover {
@@ -1662,10 +1661,13 @@
 
         .timesheet-grid .row-select-th,
         .timesheet-grid .row-select-cell {
-            width: 40px;
-            text-align: center;
+            width: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 6px;
             vertical-align: middle;
-            padding: 4px 4px;
+            padding: 4px 4px 4px 10px;
         }
 
         .timesheet-grid .row-select-cell input[type="checkbox"] {
