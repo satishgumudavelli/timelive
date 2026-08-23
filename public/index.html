@@ -1490,6 +1490,24 @@
             flex: none;
         }
 
+        .row-edit-project-btn {
+            display: block;
+            margin: 4px auto 0;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            padding: 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #fff;
+            color: #555;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .row-edit-project-btn:hover {
+            background: #f0f0f0;
+        }
+
         .week-nav-center {
             display: flex;
             align-items: center;
@@ -3114,6 +3132,32 @@
                         </thead>
                         <tbody id="search-entries-body"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update row's Client/Project/Task (applies to every day entry in that row) -->
+        <div id="row-edit-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Update row</h3>
+                    <button class="modal-close" id="close-row-edit-modal">&times;</button>
+                </div>
+                <div class="form-group">
+                    <label for="row-edit-client">Client Name</label>
+                    <select id="row-edit-client"><option value="">Select Client</option></select>
+                </div>
+                <div class="form-group">
+                    <label for="row-edit-project">Project Name</label>
+                    <select id="row-edit-project"><option value="">Select Project</option></select>
+                </div>
+                <div class="form-group">
+                    <label for="row-edit-task">Task Name</label>
+                    <select id="row-edit-task"><option value="">Select Task</option></select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-primary" id="row-edit-update-btn">Update</button>
+                    <button type="button" class="btn btn-secondary" id="row-edit-cancel-btn">Cancel</button>
                 </div>
             </div>
         </div>
@@ -5395,6 +5439,11 @@
             bindEl('search-bulk-project', 'change', handleSearchBulkProjectChange);
             bindEl('apply-search-bulk-edit-btn', 'click', handleApplySearchBulkEdit);
             bindEl('delete-search-selected-btn', 'click', handleDeleteSearchSelected);
+            bindEl('close-row-edit-modal', 'click', hideRowEditModal);
+            bindEl('row-edit-cancel-btn', 'click', hideRowEditModal);
+            bindEl('row-edit-update-btn', 'click', handleRowEditUpdate);
+            bindEl('row-edit-client', 'change', (e) => populateRowEditProjects(parseInt(e.target.value, 10) || null, null));
+            bindEl('row-edit-project', 'change', (e) => populateRowEditTasks(parseInt(e.target.value, 10) || null, null));
             bindEl('close-modal', 'click', hideEntryModal);
             bindEl('close-csv-modal', 'click', hideCSVImportModal);
             bindEl('support-btn', 'click', showSupportModal);
@@ -8594,6 +8643,105 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             }
         }
 
+        let rowEditEntryIds = [];
+
+        async function showRowEditModal(entryIds, clientId, projectId, taskId) {
+            rowEditEntryIds = entryIds || [];
+            const clientSel = document.getElementById('row-edit-client');
+            const projectSel = document.getElementById('row-edit-project');
+            const taskSel = document.getElementById('row-edit-task');
+            if (!clients.length) await loadClients();
+            clientSel.innerHTML = '<option value="">Select Client</option>';
+            clients.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.AccountClientId || c.Id;
+                opt.textContent = c.ClientName || c.Name || `Client ${opt.value}`;
+                clientSel.appendChild(opt);
+            });
+            clientSel.value = clientId != null ? String(clientId) : '';
+            await populateRowEditProjects(clientId, projectId);
+            await populateRowEditTasks(projectId, taskId);
+            document.getElementById('row-edit-modal').classList.remove('hidden');
+        }
+
+        function hideRowEditModal() {
+            document.getElementById('row-edit-modal').classList.add('hidden');
+            rowEditEntryIds = [];
+        }
+
+        async function populateRowEditProjects(clientId, selectProjectId) {
+            const projectSel = document.getElementById('row-edit-project');
+            projectSel.innerHTML = '<option value="">Select Project</option>';
+            if (!clientId || !currentEmployee) return;
+            const projectsForClient = await api.getProjectsByClient(clientId, currentEmployee.AccountEmployeeId);
+            (projectsForClient || []).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.AccountProjectId || p.Id;
+                opt.textContent = p.ProjectName || p.Name || `Project ${opt.value}`;
+                projectSel.appendChild(opt);
+            });
+            projectSel.value = selectProjectId != null ? String(selectProjectId) : '';
+        }
+
+        async function populateRowEditTasks(projectId, selectTaskId) {
+            const taskSel = document.getElementById('row-edit-task');
+            taskSel.innerHTML = '<option value="">Select Task</option>';
+            if (!projectId || !currentEmployee) return;
+            const tasksForProject = await api.getTasksByProject(projectId, currentEmployee.AccountEmployeeId);
+            (tasksForProject || []).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.AccountProjectTaskId || t.Id;
+                opt.textContent = t.TaskName || t.Name || `Task ${opt.value}`;
+                taskSel.appendChild(opt);
+            });
+            taskSel.value = selectTaskId != null ? String(selectTaskId) : '';
+        }
+
+        async function handleRowEditUpdate() {
+            const clientId = document.getElementById('row-edit-client').value;
+            const projectId = document.getElementById('row-edit-project').value;
+            const taskId = document.getElementById('row-edit-task').value;
+            if (!projectId) {
+                showToast('Choose a project.', 'error');
+                return;
+            }
+            if (!rowEditEntryIds.length) {
+                hideRowEditModal();
+                return;
+            }
+            pushAppBusy('Updating row…');
+            let ok = 0, fail = 0;
+            try {
+                for (const entryId of rowEditEntryIds) {
+                    const entry = timesheetEntries.find(e => String(e.AccountEmployeeTimeEntryId || e.Id) === String(entryId));
+                    if (!entry) continue;
+                    const raw = entry.TimeEntryDate || entry.EntryDate;
+                    const dateStr = raw ? formatDateForAPI(new Date(raw)) : null;
+                    const entryData = {
+                        AccountProjectId: parseInt(projectId, 10),
+                        AccountProjectTaskId: taskId ? parseInt(taskId, 10) : entry.AccountProjectTaskId,
+                        EntryDate: dateStr,
+                        TimeEntryDate: dateStr,
+                        Hours: parseTimeToHours(entry.TotalTime),
+                        Description: entry.TimeEntryDescription || entry.Description || '',
+                        Notes: entry.TimeEntryDescription || entry.Description || ''
+                    };
+                    try {
+                        await api.updateTimesheetEntry(entryId, entryData);
+                        ok++;
+                    } catch (err) {
+                        fail++;
+                        console.error('Row edit failed for', entryId, err);
+                    }
+                }
+                showToast(`Updated ${ok} entr${ok === 1 ? 'y' : 'ies'}.${fail ? ' ' + fail + ' failed.' : ''}`, fail ? 'error' : 'success');
+                hideRowEditModal();
+                await loadTimesheetData();
+            } finally {
+                popAppBusy();
+            }
+        }
+
         async function handleDeleteSearchSelected() {
             const selected = getSelectedSearchEntries();
             if (!selected.length) {
@@ -8977,8 +9125,21 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 rowCb.disabled = true;
             }
             selectCell.appendChild(rowCb);
+            if (entryIdsStr) {
+                const rowEditBtn = document.createElement('button');
+                rowEditBtn.type = 'button';
+                rowEditBtn.className = 'row-edit-project-btn';
+                rowEditBtn.title = 'Change client/project/task for this whole row';
+                rowEditBtn.textContent = '✎';
+                rowEditBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showRowEditModal(entryIds, firstEntry.AccountClientId, firstEntry.AccountProjectId, firstEntry.AccountProjectTaskId);
+                });
+                selectCell.appendChild(rowEditBtn);
+            }
             row.appendChild(selectCell);
-            
+
             // Combine Project and Task into one cell
             const projectTaskCell = document.createElement('td');
             projectTaskCell.className = 'project-task-cell';
