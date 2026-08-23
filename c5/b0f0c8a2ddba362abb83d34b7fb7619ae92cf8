@@ -1,0 +1,21 @@
+public/index.html
+  s_1fe9d343871dbb::t_ae9a5acbe05215 1664-1668,1670
+  s_1fe9d343871dbb::t_855d7f76ed4671 1501-1502,1504-1505,1507
+  s_1fe9d343871dbb::t_5d0fd28bdbf9ac 1493-1494,1498,1509
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.23",
+  "base_commit_sha": "c5b0f0c8a2ddba362abb83d34b7fb7619ae92cf8",
+  "prompts": {},
+  "sessions": {
+    "s_1fe9d343871dbb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c99f6713-56a9-4d89-8833-3b7f6a6d1dc4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "satish.gumudavelli <satish.gumudavelli@kitchen365.com>"
+    }
+  }
+}
