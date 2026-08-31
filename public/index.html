@@ -2844,6 +2844,8 @@
                 <button type="button" id="ai-settings-btn" class="btn btn-secondary btn-small" title="Gemini, Anthropic, or OpenRouter API keys for note suggestions">AI Keys</button>
                 <a id="jira-sync-host-link" class="jira-sync-host-link hidden" href="https://timelive.satish-gumudavelli-cp.workers.dev/" target="_blank" rel="noopener noreferrer" title="Jira worklog sync runs on the Cloudflare Workers site">For Jira sync, open this site</a>
                 <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-host-only hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
+                <button type="button" id="jira-add-mapping-btn" class="btn btn-secondary btn-small jira-features-host hidden" title="Map a Jira issue key (full or partial) to a TimeLive project/task">Add Mapping</button>
+                <button type="button" id="jira-sync-all-btn" class="btn btn-primary btn-small jira-features-host hidden" title="Pull this week's Jira worklogs into TimeLive using your mappings">Sync All Jira</button>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                     <span id="support-unread-badge" class="support-unread-badge hidden" aria-label="Unread support replies">0</span>
@@ -3399,6 +3401,64 @@
                         <button type="submit" class="btn btn-primary">Save</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Jira issue key -> TimeLive project/task mapping (stored in this browser) -->
+        <div id="jira-mapping-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="jira-mapping-modal-title">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="jira-mapping-modal-title">Jira → TimeLive Mapping</h3>
+                    <button type="button" class="modal-close" id="close-jira-mapping-modal" aria-label="Close">&times;</button>
+                </div>
+                <p class="ai-settings-hint">
+                    Map a Jira issue key (or part of one) to a TimeLive project/task. "Sync All Jira" and adding worklogs to an entry use this to fill in project/task automatically.
+                </p>
+                <form id="jira-mapping-form">
+                    <input type="hidden" id="jira-map-id" value="">
+                    <div class="form-group">
+                        <label for="jira-map-issue-key">Jira issue key</label>
+                        <input type="text" id="jira-map-issue-key" name="jira-map-issue-key" placeholder="e.g. ABC-123 or ABC-" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="jira-map-partial">Match type</label>
+                        <select id="jira-map-partial">
+                            <option value="0">Exact key</option>
+                            <option value="1">Partial (key contains this text)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="jira-map-client">Client</label>
+                        <select id="jira-map-client" required><option value="">Select Client</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="jira-map-project">Project</label>
+                        <select id="jira-map-project" required><option value="">Select Project</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="jira-map-task">Task</label>
+                        <select id="jira-map-task" required><option value="">Select Task</option></select>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="cancel-jira-mapping-btn">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="jira-mapping-save-btn">Add Mapping</button>
+                    </div>
+                </form>
+                <div style="margin-top:16px;">
+                    <h4 style="margin:0 0 6px;">Existing Mappings</h4>
+                    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                        <thead>
+                            <tr style="text-align:left;border-bottom:1px solid #ddd;">
+                                <th style="padding:4px;">Issue Key</th>
+                                <th style="padding:4px;">Match</th>
+                                <th style="padding:4px;">Project</th>
+                                <th style="padding:4px;">Task</th>
+                                <th style="padding:4px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="jira-mapping-list-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -5499,6 +5559,17 @@
             bindEl('jira-settings-modal', 'click', (e) => {
                 if (e.target.id === 'jira-settings-modal') hideJiraSettingsModal();
             });
+            bindEl('jira-add-mapping-btn', 'click', showJiraMappingModal);
+            bindEl('jira-sync-all-btn', 'click', handleSyncAllJiraClick);
+            bindEl('close-jira-mapping-modal', 'click', hideJiraMappingModal);
+            bindEl('cancel-jira-mapping-btn', 'click', hideJiraMappingModal);
+            bindEl('jira-mapping-form', 'submit', handleJiraMappingSubmit);
+            bindEl('jira-mapping-list-body', 'click', handleJiraMappingListClick);
+            bindEl('jira-mapping-modal', 'click', (e) => {
+                if (e.target.id === 'jira-mapping-modal') hideJiraMappingModal();
+            });
+            bindEl('jira-map-client', 'change', (e) => loadJiraMapProjectOptions(parseInt(e.target.value, 10)));
+            bindEl('jira-map-project', 'change', (e) => loadJiraMapTaskOptions(parseInt(e.target.value, 10)));
             bindEl('jira-fetch-worklogs-btn', 'click', handleJiraFetchWorklogsClick);
             bindEl('jira-add-worklogs-btn', 'click', handleJiraAddWorklogsClick);
             bindEl('jira-load-day-issues-btn', 'click', () => handleJiraLoadDayIssuesClick('modal'));
@@ -5974,6 +6045,200 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             } catch (e) {
                 return false;
             }
+        }
+
+        const JIRA_PROJECT_TASK_MAP_STORAGE = 'timelive_jira_project_task_map';
+
+        function getJiraProjectTaskMappings() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(JIRA_PROJECT_TASK_MAP_STORAGE));
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveJiraProjectTaskMappings(list) {
+            localStorage.setItem(JIRA_PROJECT_TASK_MAP_STORAGE, JSON.stringify(list));
+        }
+
+        function upsertJiraProjectTaskMapping(mapping) {
+            const list = getJiraProjectTaskMappings();
+            const idx = mapping.id ? list.findIndex(m => m.id === mapping.id) : -1;
+            if (idx >= 0) {
+                list[idx] = mapping;
+            } else {
+                list.push({ ...mapping, id: String(Date.now()) });
+            }
+            saveJiraProjectTaskMappings(list);
+        }
+
+        function deleteJiraProjectTaskMapping(id) {
+            saveJiraProjectTaskMappings(getJiraProjectTaskMappings().filter(m => m.id !== id));
+        }
+
+        // Exact-key mappings win over partial (substring) ones.
+        function findJiraProjectTaskMapping(issueKey) {
+            const key = String(issueKey || '').trim().toUpperCase();
+            if (!key) return null;
+            const list = getJiraProjectTaskMappings();
+            const exact = list.find(m => !m.partial && String(m.issueKey).toUpperCase() === key);
+            if (exact) return exact;
+            return list.find(m => m.partial && key.includes(String(m.issueKey).toUpperCase())) || null;
+        }
+
+        async function loadJiraMapClientOptions() {
+            const select = document.getElementById('jira-map-client');
+            if (!select) return;
+            if (!currentEmployee || !currentEmployee.AccountEmployeeId) {
+                await loadCurrentEmployee();
+            }
+            if (!currentEmployee || !currentEmployee.AccountEmployeeId) return;
+            const employeeId = currentEmployee.AccountEmployeeId;
+            let list = getStoredClients();
+            if (!list || getStoredEmployeeId() !== employeeId) {
+                list = await api.getClients(employeeId);
+                if (Array.isArray(list) && list.length) storeClients(list);
+            }
+            select.innerHTML = '<option value="">Select Client</option>';
+            (Array.isArray(list) ? list : []).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.AccountClientId || c.Id;
+                opt.textContent = c.ClientName || c.Name || `Client ${opt.value}`;
+                select.appendChild(opt);
+            });
+        }
+
+        async function loadJiraMapProjectOptions(clientId) {
+            const select = document.getElementById('jira-map-project');
+            const taskSelect = document.getElementById('jira-map-task');
+            if (!select) return;
+            select.innerHTML = '<option value="">Select Project</option>';
+            if (taskSelect) taskSelect.innerHTML = '<option value="">Select Task</option>';
+            if (!clientId || !currentEmployee) return;
+            let list = getStoredProjects(clientId);
+            if (!list) {
+                list = await api.getProjectsByClient(clientId, currentEmployee.AccountEmployeeId);
+                storeProjects(list, clientId);
+            }
+            (Array.isArray(list) ? list : []).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.AccountProjectId || p.Id;
+                opt.textContent = p.ProjectName || p.Name || `Project ${opt.value}`;
+                select.appendChild(opt);
+            });
+        }
+
+        async function loadJiraMapTaskOptions(projectId) {
+            const select = document.getElementById('jira-map-task');
+            if (!select) return;
+            select.innerHTML = '<option value="">Select Task</option>';
+            if (!projectId || !currentEmployee) return;
+            const stored = getStoredTasks();
+            let list = stored ? stored[projectId] : null;
+            if (!list) {
+                list = await api.getTasksByProject(projectId, currentEmployee.AccountEmployeeId);
+            }
+            (Array.isArray(list) ? list : []).forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t.AccountProjectTaskId;
+                opt.textContent = t.TaskName;
+                select.appendChild(opt);
+            });
+        }
+
+        function renderJiraMappingList() {
+            const body = document.getElementById('jira-mapping-list-body');
+            if (!body) return;
+            const list = getJiraProjectTaskMappings();
+            body.innerHTML = '';
+            list.forEach(m => {
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid #eee';
+                tr.innerHTML = `
+                    <td style="padding:4px;">${escapeHtml(m.issueKey)}</td>
+                    <td style="padding:4px;">${m.partial ? 'Partial' : 'Exact'}</td>
+                    <td style="padding:4px;">${escapeHtml(m.projectName || '')}</td>
+                    <td style="padding:4px;">${escapeHtml(m.taskName || '')}</td>
+                    <td style="padding:4px;"><button type="button" class="btn btn-secondary btn-small" data-delete-mapping-id="${m.id}">Delete</button></td>
+                `;
+                body.appendChild(tr);
+            });
+        }
+
+        async function showJiraMappingModal() {
+            const modal = document.getElementById('jira-mapping-modal');
+            document.getElementById('jira-map-id').value = '';
+            document.getElementById('jira-map-issue-key').value = '';
+            document.getElementById('jira-map-partial').value = '0';
+            await loadJiraMapClientOptions();
+            document.getElementById('jira-map-project').innerHTML = '<option value="">Select Project</option>';
+            document.getElementById('jira-map-task').innerHTML = '<option value="">Select Task</option>';
+            renderJiraMappingList();
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function hideJiraMappingModal() {
+            const modal = document.getElementById('jira-mapping-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function handleJiraMappingSubmit(e) {
+            e.preventDefault();
+            const issueKey = document.getElementById('jira-map-issue-key').value.trim().toUpperCase();
+            const partial = document.getElementById('jira-map-partial').value === '1';
+            const clientSelect = document.getElementById('jira-map-client');
+            const projectSelect = document.getElementById('jira-map-project');
+            const taskSelect = document.getElementById('jira-map-task');
+            const projectId = parseInt(projectSelect.value, 10);
+            const taskId = parseInt(taskSelect.value, 10);
+
+            if (!issueKey || !clientSelect.value || !projectId || !taskId) {
+                showToast('Fill in the issue key, client, project, and task.', 'error');
+                return;
+            }
+
+            upsertJiraProjectTaskMapping({
+                id: document.getElementById('jira-map-id').value || null,
+                issueKey,
+                partial,
+                clientId: parseInt(clientSelect.value, 10),
+                projectId,
+                taskId,
+                projectName: projectSelect.selectedOptions[0]?.textContent || '',
+                taskName: taskSelect.selectedOptions[0]?.textContent || ''
+            });
+
+            showToast('Mapping saved.', 'success', 3000);
+            document.getElementById('jira-mapping-form').reset();
+            document.getElementById('jira-map-id').value = '';
+            document.getElementById('jira-map-project').innerHTML = '<option value="">Select Project</option>';
+            document.getElementById('jira-map-task').innerHTML = '<option value="">Select Task</option>';
+            renderJiraMappingList();
+        }
+
+        function handleJiraMappingListClick(e) {
+            const delId = e.target.getAttribute && e.target.getAttribute('data-delete-mapping-id');
+            if (delId) {
+                deleteJiraProjectTaskMapping(delId);
+                renderJiraMappingList();
+            }
+        }
+
+        async function applyJiraMappingToEntryForm(issueKey) {
+            const mapping = findJiraProjectTaskMapping(issueKey);
+            if (!mapping) return;
+            const clientEl = document.getElementById('client');
+            const projectEl = document.getElementById('project');
+            const taskEl = document.getElementById('task');
+            if (!clientEl || !projectEl || !taskEl) return;
+            if (clientEl.value && projectEl.value && taskEl.value) return; // don't clobber a manual pick
+            clientEl.value = mapping.clientId;
+            await loadProjectsForClient(mapping.clientId);
+            document.getElementById('project').value = mapping.projectId;
+            await loadTasks(mapping.projectId);
+            document.getElementById('task').value = mapping.taskId;
+            showToast(`Mapped to ${mapping.projectName} / ${mapping.taskName}.`, 'success', 3000);
         }
 
         function isJiraSyncNoticeDismissed() {
@@ -6745,6 +7010,96 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             await fetchJiraWorklogsForContext('quick');
         }
 
+        // ponytail: sequential per-issue calls, no concurrency cap — fine for one week's worth of issues.
+        async function handleSyncAllJiraClick() {
+            if (!isJiraFeaturesAvailable()) return;
+            const settings = await getStoredJiraSettings();
+            if (!settings || !settings.token) {
+                showToast('Configure Jira settings first (email + API token).', 'error', 7000);
+                showJiraSettingsModal();
+                return;
+            }
+            if (needsJiraProxyHost() && !settings.proxyUrl) {
+                showToast('Set a Jira proxy URL in Jira settings (on Workers, use this site URL).', 'error', 9000);
+                showJiraSettingsModal();
+                return;
+            }
+            if (!currentWeekStart) {
+                showToast('No week selected.', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('jira-sync-all-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
+
+            let created = 0;
+            const unmapped = new Set();
+
+            try {
+                for (let i = 0; i < 7; i++) {
+                    const day = new Date(currentWeekStart);
+                    day.setDate(day.getDate() + i);
+                    const dateStr = formatDateForAPI(day);
+
+                    let issues;
+                    try {
+                        issues = await fetchJiraIssuesForDate(dateStr, settings);
+                    } catch (e) {
+                        showToast(`Jira search failed for ${dateStr}: ${e.message || e}`, 'error', 8000);
+                        continue;
+                    }
+
+                    for (const issue of issues) {
+                        const issueKey = issue.key;
+                        const mapping = findJiraProjectTaskMapping(issueKey);
+                        if (!mapping) {
+                            unmapped.add(issueKey);
+                            continue;
+                        }
+
+                        let all;
+                        try {
+                            all = await fetchAllJiraWorklogs(issueKey, settings);
+                        } catch (e) {
+                            continue;
+                        }
+                        let filtered = filterWorklogsByDate(all, dateStr);
+                        filtered = filterWorklogsByAuthor(filtered, settings.email);
+                        if (!filtered.length) continue;
+
+                        const seconds = sumJiraWorklogSeconds(filtered);
+                        if (seconds <= 0) continue;
+                        const hours = hhmmToHours(secondsToHHMM(seconds));
+
+                        if (findDuplicateEntry(dateStr, mapping.taskId, hours, null)) continue; // already synced
+
+                        const description = filtered.map(w => formatWorklogLine(w, issueKey)).filter(Boolean).join('\n');
+
+                        await api.createTimesheetEntry({
+                            AccountProjectId: mapping.projectId,
+                            AccountProjectTaskId: mapping.taskId,
+                            EntryDate: dateStr,
+                            TimeEntryDate: dateStr,
+                            Hours: hours,
+                            Description: description,
+                            Notes: description,
+                            TimeEntryDescription: description,
+                            AccountEmployeeId: currentEmployee ? currentEmployee.AccountEmployeeId : undefined
+                        });
+                        created++;
+                    }
+                }
+
+                await loadTimesheetData();
+
+                const parts = [`Sync done: ${created} entr${created === 1 ? 'y' : 'ies'} created.`];
+                if (unmapped.size) parts.push(`No mapping for: ${[...unmapped].join(', ')}.`);
+                showToast(parts.join(' '), unmapped.size ? 'info' : 'success', 8000);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Sync All Jira'; }
+            }
+        }
+
         function addJiraWorklogsForContext(which) {
             const ctx = jiraGetContext(which);
             const list = ctx.listEl();
@@ -6770,6 +7125,10 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                 timeUpdated ? 'Worklogs added to notes and time updated.' : 'Worklogs appended to notes.',
                 'success'
             );
+
+            if (which === 'modal') {
+                applyJiraMappingToEntryForm(issueKey);
+            }
         }
 
         function handleJiraAddWorklogsClick() {
