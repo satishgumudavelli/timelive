@@ -1721,6 +1721,12 @@
             background-color: var(--totals-row-bg);
         }
 
+        .timesheet-grid tbody tr.blank-add-row td.project-task-cell.is-muted {
+            color: var(--muted);
+            font-style: italic;
+            font-size: 13px;
+        }
+
         .timesheet-grid tbody tr {
             border-bottom: 1px solid var(--ink);
             transition: background-color 0.15s;
@@ -2846,6 +2852,9 @@
                 <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-host-only hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
                 <button type="button" id="jira-add-mapping-btn" class="btn btn-secondary btn-small jira-features-host hidden" title="Map a Jira issue key (full or partial) to a TimeLive project/task">Add Mapping</button>
                 <button type="button" id="jira-sync-all-btn" class="btn btn-primary btn-small jira-features-host hidden" title="Pull this week's Jira worklogs into TimeLive using your mappings">Sync All Jira</button>
+                <button type="button" id="settings-export-btn" class="btn btn-secondary btn-small" title="Backup Favourites, Jira Mapping, and other saved settings to a file">Export Settings</button>
+                <button type="button" id="settings-import-btn" class="btn btn-secondary btn-small" title="Restore Favourites, Jira Mapping, and other saved settings from a backup file">Import Settings</button>
+                <input type="file" id="settings-import-file" accept="application/json" hidden>
                 <button type="button" id="support-btn" class="btn btn-support" title="Send feedback or get help">
                     <span>💬</span> Support
                     <span id="support-unread-badge" class="support-unread-badge hidden" aria-label="Unread support replies">0</span>
@@ -4778,7 +4787,42 @@
         }
 
         function saveEntryFavorites(list) {
-            localStorage.setItem(ENTRY_FAVORITES_STORAGE_KEY, JSON.stringify(list.slice(0, 20)));
+            const capped = list.slice(0, 20);
+            localStorage.setItem(ENTRY_FAVORITES_STORAGE_KEY, JSON.stringify(capped));
+            syncFavoritesToKV(capped);
+        }
+
+        // Favorites live in localStorage (fast, works offline) mirrored to Workers KV
+        // (keyed by employee id) so they survive a different origin/preview URL after deploy.
+        let favoritesPulledFromKV = false;
+
+        function syncFavoritesToKV(list) {
+            if (!currentEmployee || !currentEmployee.AccountEmployeeId) return;
+            fetch('/api/favorites', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ employeeId: currentEmployee.AccountEmployeeId, favorites: list }),
+            }).catch(() => {});
+        }
+
+        async function pullFavoritesFromKV() {
+            if (favoritesPulledFromKV) return;
+            if (!currentEmployee || !currentEmployee.AccountEmployeeId) return;
+            favoritesPulledFromKV = true;
+            try {
+                const res = await fetch(`/api/favorites?employeeId=${currentEmployee.AccountEmployeeId}`);
+                if (!res.ok) return;
+                const { favorites } = await res.json();
+                if (Array.isArray(favorites) && favorites.length) {
+                    localStorage.setItem(ENTRY_FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+                    populateEntryFavoritesSelect();
+                } else {
+                    const local = loadEntryFavorites();
+                    if (local.length) syncFavoritesToKV(local);
+                }
+            } catch (e) {
+                // Offline or KV unreachable — local cache keeps working.
+            }
         }
 
         function updateDeleteEntryFavoriteButtonState() {
@@ -4861,6 +4905,67 @@
             saveEntryFavorites(favs);
             populateEntryFavoritesSelect();
             showToast('Favorite deleted.', 'info', 3200);
+        }
+
+        // Settings backed up here are per-browser localStorage, not secrets — never include API keys/tokens/credentials.
+        const BACKUP_SETTINGS_KEYS = {
+            favorites: 'timelive_entry_favorites',
+            jiraProjectTaskMap: 'timelive_jira_project_task_map',
+            weekTemplates: 'timelive_week_templates',
+            timeRules: 'timelive_time_rules',
+            csvMappingPresets: 'timelive_csv_mapping_presets',
+            aiPromptSettings: 'timelive_ai_prompt_settings',
+            aiProvider: 'timelive_ai_provider',
+            theme: 'timelive-ui-theme',
+            jiraRecentKeys: 'timelive_jira_recent_keys',
+        };
+
+        function handleExportSettingsClick() {
+            const data = {};
+            Object.entries(BACKUP_SETTINGS_KEYS).forEach(([name, key]) => {
+                const raw = localStorage.getItem(key);
+                if (raw != null) data[name] = raw;
+            });
+            const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `timelive-settings-backup-${formatDateForAPI(new Date())}.json`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast('Settings exported.', 'success', 3000);
+        }
+
+        function handleImportSettingsFile(e) {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                let parsed;
+                try {
+                    parsed = JSON.parse(reader.result);
+                } catch (err) {
+                    showToast('Invalid settings file.', 'error');
+                    return;
+                }
+                const data = parsed.data || parsed;
+                if (!confirm('Import will overwrite your current Favourites, Jira Mapping, and other saved settings on this browser. Continue?')) {
+                    return;
+                }
+                let count = 0;
+                Object.entries(BACKUP_SETTINGS_KEYS).forEach(([name, key]) => {
+                    if (data[name] != null) {
+                        localStorage.setItem(key, data[name]);
+                        count++;
+                    }
+                });
+                showToast(`Imported ${count} setting(s). Reloading…`, 'success', 3000);
+                setTimeout(() => location.reload(), 800);
+            };
+            reader.readAsText(file);
         }
 
         function getCurrentWeekGrandTotalHours() {
@@ -5551,6 +5656,9 @@
             bindEl('ai-settings-modal', 'click', (e) => {
                 if (e.target.id === 'ai-settings-modal') hideAiSettingsModal();
             });
+            bindEl('settings-export-btn', 'click', handleExportSettingsClick);
+            bindEl('settings-import-btn', 'click', () => document.getElementById('settings-import-file').click());
+            bindEl('settings-import-file', 'change', handleImportSettingsFile);
             bindEl('jira-settings-btn', 'click', showJiraSettingsModal);
             bindEl('close-jira-settings-modal', 'click', hideJiraSettingsModal);
             bindEl('cancel-jira-settings-btn', 'click', hideJiraSettingsModal);
@@ -8271,6 +8379,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     loadClients(),
                     loadProjects()
                 ]);
+                pullFavoritesFromKV();
                 await loadTimesheetData();
             } catch (error) {
                 console.error('Error loading initial data:', error);
@@ -9208,6 +9317,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             
             if (!timesheetEntries || timesheetEntries.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No timesheet entries found. Click "Add Entry" to create one.</td></tr>';
+                tbody.appendChild(createBlankTimesheetRow());
                 const selectAll = document.getElementById('select-all-rows');
                 if (selectAll) {
                     selectAll.checked = false;
@@ -9247,6 +9357,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             // Add totals row
             const totalsRow = createTotalsRow(dayTotals, grandTotal);
             tbody.appendChild(totalsRow);
+            tbody.appendChild(createBlankTimesheetRow());
 
             const selectAll = document.getElementById('select-all-rows');
             if (selectAll) {
@@ -9773,6 +9884,54 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             row.dataset.rowTotalHours = String(totalHours);
             row.dataset.rowSearchText = `${clientName} ${projectName} ${taskName}`.trim().toLowerCase();
             
+            return row;
+        }
+
+        function createBlankTimesheetRow() {
+            const row = document.createElement('tr');
+            row.className = 'blank-add-row';
+
+            const selectCell = document.createElement('td');
+            selectCell.className = 'row-select-cell';
+            row.appendChild(selectCell);
+
+            const projectTaskCell = document.createElement('td');
+            projectTaskCell.className = 'project-task-cell is-muted';
+            projectTaskCell.textContent = '+ Double-click a day below to add a new entry';
+            row.appendChild(projectTaskCell);
+
+            getWeekDays().forEach(day => {
+                const dayCell = document.createElement('td');
+                dayCell.className = 'day-cell';
+
+                const cellInner = document.createElement('div');
+                cellInner.className = 'day-cell-inner';
+
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'day-hours-input';
+                input.placeholder = '00:00';
+                input.readOnly = true;
+                input.style.textAlign = 'center';
+                input.style.cursor = 'pointer';
+                input.title = 'Double-click to add an entry for this date';
+
+                const dayDateStr = formatDateForAPI(day);
+                input.addEventListener('dblclick', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showCellEditModal(null, dayDateStr, {});
+                });
+
+                cellInner.appendChild(input);
+                dayCell.appendChild(cellInner);
+                row.appendChild(dayCell);
+            });
+
+            const totalCell = document.createElement('td');
+            totalCell.className = 'total-cell';
+            row.appendChild(totalCell);
+
             return row;
         }
 

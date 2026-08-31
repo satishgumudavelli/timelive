@@ -18,6 +18,11 @@ export default {
       return handleJiraIssuesForDate(request);
     }
 
+    if (isFavoritesPath(url.pathname)) {
+      if (request.method === 'GET') return handleGetFavorites(url, env);
+      if (request.method === 'POST') return handlePostFavorites(request, env);
+    }
+
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
@@ -35,6 +40,38 @@ function isJiraWorklogPath(pathname) {
 
 function isJiraIssuesForDatePath(pathname) {
   return pathname === '/api/jira/issues-for-date' || pathname === '/api/jira/issues-for-date/';
+}
+
+function isFavoritesPath(pathname) {
+  return pathname === '/api/favorites' || pathname === '/api/favorites/';
+}
+
+async function handleGetFavorites(url, env) {
+  const employeeId = String(url.searchParams.get('employeeId') || '').trim();
+  if (!employeeId || !env.TIMELIVE_KV) {
+    return jsonResponse({ favorites: [] }, 200);
+  }
+  const raw = await env.TIMELIVE_KV.get(`favorites:${employeeId}`);
+  return jsonResponse({ favorites: raw ? JSON.parse(raw) : [] }, 200);
+}
+
+async function handlePostFavorites(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+  const employeeId = String(body.employeeId || '').trim();
+  const favorites = Array.isArray(body.favorites) ? body.favorites : null;
+  if (!employeeId || !favorites) {
+    return jsonResponse({ error: 'Missing employeeId or favorites array' }, 400);
+  }
+  if (!env.TIMELIVE_KV) {
+    return jsonResponse({ error: 'KV binding not configured' }, 500);
+  }
+  await env.TIMELIVE_KV.put(`favorites:${employeeId}`, JSON.stringify(favorites.slice(0, 20)));
+  return jsonResponse({ ok: true }, 200);
 }
 
 async function handleJiraWorklogProxy(request) {
