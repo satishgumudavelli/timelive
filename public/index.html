@@ -3448,11 +3448,11 @@
                     <h4 style="margin:0 0 6px;">Existing Mappings</h4>
                     <table style="width:100%;border-collapse:collapse;font-size:13px;">
                         <thead>
-                            <tr style="text-align:left;border-bottom:1px solid #ddd;">
-                                <th style="padding:4px;">Issue Key</th>
-                                <th style="padding:4px;">Match</th>
-                                <th style="padding:4px;">Project</th>
-                                <th style="padding:4px;">Task</th>
+                            <tr id="jira-mapping-list-head" style="text-align:left;border-bottom:1px solid #ddd;">
+                                <th style="padding:4px;" data-sort="issueKey" data-label="Issue Key">Issue Key</th>
+                                <th style="padding:4px;" data-sort="partial" data-label="Match">Match</th>
+                                <th style="padding:4px;" data-sort="projectName" data-label="Project">Project</th>
+                                <th style="padding:4px;" data-sort="taskName" data-label="Task">Task</th>
                                 <th style="padding:4px;"></th>
                             </tr>
                         </thead>
@@ -5565,6 +5565,7 @@
             bindEl('cancel-jira-mapping-btn', 'click', hideJiraMappingModal);
             bindEl('jira-mapping-form', 'submit', handleJiraMappingSubmit);
             bindEl('jira-mapping-list-body', 'click', handleJiraMappingListClick);
+            bindEl('jira-mapping-list-head', 'click', handleJiraMappingSortClick);
             bindEl('jira-mapping-modal', 'click', (e) => {
                 if (e.target.id === 'jira-mapping-modal') hideJiraMappingModal();
             });
@@ -6147,10 +6148,17 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             });
         }
 
+        let jiraMappingSort = { field: 'issueKey', dir: 1 };
+
         function renderJiraMappingList() {
             const body = document.getElementById('jira-mapping-list-body');
             if (!body) return;
-            const list = getJiraProjectTaskMappings();
+            const { field, dir } = jiraMappingSort;
+            const list = getJiraProjectTaskMappings().slice().sort((a, b) => {
+                const av = field === 'partial' ? (a.partial ? 1 : 0) : String(a[field] || '').toLowerCase();
+                const bv = field === 'partial' ? (b.partial ? 1 : 0) : String(b[field] || '').toLowerCase();
+                return av < bv ? -dir : av > bv ? dir : 0;
+            });
             body.innerHTML = '';
             list.forEach(m => {
                 const tr = document.createElement('tr');
@@ -6160,10 +6168,47 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     <td style="padding:4px;">${m.partial ? 'Partial' : 'Exact'}</td>
                     <td style="padding:4px;">${escapeHtml(m.projectName || '')}</td>
                     <td style="padding:4px;">${escapeHtml(m.taskName || '')}</td>
-                    <td style="padding:4px;"><button type="button" class="btn btn-secondary btn-small" data-delete-mapping-id="${m.id}">Delete</button></td>
+                    <td style="padding:4px;white-space:nowrap;">
+                        <button type="button" class="btn btn-secondary btn-small" data-edit-mapping-id="${m.id}">Edit</button>
+                        <button type="button" class="btn btn-secondary btn-small" data-delete-mapping-id="${m.id}">Delete</button>
+                    </td>
                 `;
                 body.appendChild(tr);
             });
+            const heads = document.querySelectorAll('#jira-mapping-list-head [data-sort]');
+            heads.forEach(th => {
+                const active = th.getAttribute('data-sort') === field;
+                th.style.cursor = 'pointer';
+                th.textContent = th.getAttribute('data-label') + (active ? (dir === 1 ? ' ▲' : ' ▼') : '');
+            });
+        }
+
+        function handleJiraMappingSortClick(e) {
+            const th = e.target.closest('[data-sort]');
+            if (!th) return;
+            const field = th.getAttribute('data-sort');
+            if (jiraMappingSort.field === field) {
+                jiraMappingSort.dir *= -1;
+            } else {
+                jiraMappingSort = { field, dir: 1 };
+            }
+            renderJiraMappingList();
+        }
+
+        async function editJiraProjectTaskMapping(id) {
+            const mapping = getJiraProjectTaskMappings().find(m => m.id === id);
+            if (!mapping) return;
+            document.getElementById('jira-map-id').value = mapping.id;
+            document.getElementById('jira-map-issue-key').value = mapping.issueKey;
+            document.getElementById('jira-map-partial').value = mapping.partial ? '1' : '0';
+            await loadJiraMapClientOptions();
+            document.getElementById('jira-map-client').value = mapping.clientId;
+            await loadJiraMapProjectOptions(mapping.clientId);
+            document.getElementById('jira-map-project').value = mapping.projectId;
+            await loadJiraMapTaskOptions(mapping.projectId);
+            document.getElementById('jira-map-task').value = mapping.taskId;
+            const saveBtn = document.getElementById('jira-mapping-save-btn');
+            if (saveBtn) saveBtn.textContent = 'Update Mapping';
         }
 
         async function showJiraMappingModal() {
@@ -6171,6 +6216,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             document.getElementById('jira-map-id').value = '';
             document.getElementById('jira-map-issue-key').value = '';
             document.getElementById('jira-map-partial').value = '0';
+            const saveBtn = document.getElementById('jira-mapping-save-btn');
+            if (saveBtn) saveBtn.textContent = 'Add Mapping';
             await loadJiraMapClientOptions();
             document.getElementById('jira-map-project').innerHTML = '<option value="">Select Project</option>';
             document.getElementById('jira-map-task').innerHTML = '<option value="">Select Task</option>';
@@ -6214,6 +6261,8 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             document.getElementById('jira-map-id').value = '';
             document.getElementById('jira-map-project').innerHTML = '<option value="">Select Project</option>';
             document.getElementById('jira-map-task').innerHTML = '<option value="">Select Task</option>';
+            const saveBtn = document.getElementById('jira-mapping-save-btn');
+            if (saveBtn) saveBtn.textContent = 'Add Mapping';
             renderJiraMappingList();
         }
 
@@ -6222,6 +6271,11 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             if (delId) {
                 deleteJiraProjectTaskMapping(delId);
                 renderJiraMappingList();
+                return;
+            }
+            const editId = e.target.getAttribute && e.target.getAttribute('data-edit-mapping-id');
+            if (editId) {
+                editJiraProjectTaskMapping(editId);
             }
         }
 
