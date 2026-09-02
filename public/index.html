@@ -2852,6 +2852,7 @@
                 <button type="button" id="jira-settings-btn" class="btn btn-secondary btn-small jira-host-only hidden" title="Jira Cloud email and API token for worklog import">Jira</button>
                 <button type="button" id="jira-add-mapping-btn" class="btn btn-secondary btn-small jira-features-host hidden" title="Map a Jira issue key (full or partial) to a TimeLive project/task">Add Mapping</button>
                 <button type="button" id="jira-sync-all-btn" class="btn btn-primary btn-small jira-features-host hidden" title="Pull this week's Jira worklogs into TimeLive using your mappings">Sync All Jira</button>
+                <button type="button" id="refresh-project-cache-btn" class="btn btn-secondary btn-small" title="Re-fetch clients/projects/tasks from TimeLive instead of using the cached copy">Refresh Cache</button>
                 <button type="button" id="settings-export-btn" class="btn btn-secondary btn-small" title="Backup Favourites, Jira Mapping, and other saved settings to a file">Export Settings</button>
                 <button type="button" id="settings-import-btn" class="btn btn-secondary btn-small" title="Restore Favourites, Jira Mapping, and other saved settings from a backup file">Import Settings</button>
                 <input type="file" id="settings-import-file" accept="application/json" hidden>
@@ -5656,6 +5657,7 @@
             bindEl('ai-settings-modal', 'click', (e) => {
                 if (e.target.id === 'ai-settings-modal') hideAiSettingsModal();
             });
+            bindEl('refresh-project-cache-btn', 'click', () => refreshProjectTaskCache(false));
             bindEl('settings-export-btn', 'click', handleExportSettingsClick);
             bindEl('settings-import-btn', 'click', () => document.getElementById('settings-import-file').click());
             bindEl('settings-import-file', 'change', handleImportSettingsFile);
@@ -8148,6 +8150,55 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
             return getSessionData('clients');
         }
 
+        const PROJECT_TASK_CACHE_REFRESH_DATE_KEY = 'timelive_project_task_cache_refresh_date';
+
+        function clearProjectTaskCache() {
+            localStorage.removeItem('timelive_session_projects');
+            localStorage.removeItem('timelive_session_tasks');
+            localStorage.removeItem('timelive_session_clients');
+        }
+
+        // Re-fetches clients/projects/tasks fresh (cache normally serves these from
+        // localStorage indefinitely, so client/project/task renames wouldn't otherwise
+        // show up until a manual refresh or the once-a-day auto refresh below).
+        async function refreshProjectTaskCache(silent = false) {
+            const btn = document.getElementById('refresh-project-cache-btn');
+            if (btn && !silent) {
+                btn.disabled = true;
+                btn.textContent = 'Refreshing…';
+            }
+            try {
+                clearProjectTaskCache();
+                await loadClients();
+
+                const clientSelect = document.getElementById('client');
+                const clientId = clientSelect && clientSelect.value ? parseInt(clientSelect.value, 10) : null;
+                if (clientId) {
+                    await loadProjectsForClient(clientId);
+                    const projectSelect = document.getElementById('project');
+                    const projectId = projectSelect && projectSelect.value ? parseInt(projectSelect.value, 10) : null;
+                    if (projectId) {
+                        await loadTasks(projectId);
+                    }
+                }
+                if (!silent) showToast('Project/task cache refreshed.', 'success', 3000);
+            } catch (e) {
+                if (!silent) showToast('Failed to refresh project/task cache.', 'error');
+            } finally {
+                if (btn && !silent) {
+                    btn.disabled = false;
+                    btn.textContent = 'Refresh Cache';
+                }
+            }
+        }
+
+        function maybeAutoRefreshProjectTaskCache() {
+            const today = formatDateForAPI(new Date());
+            if (localStorage.getItem(PROJECT_TASK_CACHE_REFRESH_DATE_KEY) === today) return;
+            localStorage.setItem(PROJECT_TASK_CACHE_REFRESH_DATE_KEY, today);
+            refreshProjectTaskCache(true);
+        }
+
         // --- Time rules and rounding ---
         function getTimeRules() {
             const raw = localStorage.getItem('timelive_time_rules');
@@ -8380,6 +8431,7 @@ Respond with ONLY a JSON array of 3 strings, no markdown or explanation.`;
                     loadProjects()
                 ]);
                 pullFavoritesFromKV();
+                maybeAutoRefreshProjectTaskCache();
                 await loadTimesheetData();
             } catch (error) {
                 console.error('Error loading initial data:', error);
