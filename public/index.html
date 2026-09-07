@@ -5019,57 +5019,8 @@
             body.innerHTML = `
                 <div class="week-summary-col"><h4>By client</h4><ul>${listItems(byClient)}</ul></div>
                 <div class="week-summary-col"><h4>By project</h4><ul>${listItems(byProject)}</ul></div>
-                <div class="week-summary-col hours-chart-col" style="grid-column:1/-1"><h4>Hours by project (this week)</h4><canvas id="week-hours-chart" class="hours-chart" height="120"></canvas></div>
             `;
-            _lastWeekChartData = byProject;
-            drawHoursBarChart('week-hours-chart', byProject);
         }
-
-        // Plain <canvas> bar chart, no chart library. No budgeted/expected-hours field exists in
-        // stored data (grepped for "budget" — none), so this shows raw totals only, no over/under view.
-        function drawHoursBarChart(canvasId, dataObj) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas || !canvas.getContext) return;
-            const keys = Object.keys(dataObj).sort((a, b) => dataObj[b] - dataObj[a]).slice(0, 8);
-            const dpr = window.devicePixelRatio || 1;
-            const cssWidth = canvas.parentElement ? canvas.parentElement.clientWidth || 400 : 400;
-            const cssHeight = 120;
-            canvas.width = cssWidth * dpr;
-            canvas.height = cssHeight * dpr;
-            canvas.style.width = cssWidth + 'px';
-            canvas.style.height = cssHeight + 'px';
-            const ctx = canvas.getContext('2d');
-            ctx.scale(dpr, dpr);
-            ctx.clearRect(0, 0, cssWidth, cssHeight);
-            if (!keys.length) {
-                ctx.fillStyle = '#888';
-                ctx.font = '12px sans-serif';
-                ctx.fillText('No hours logged.', 8, 20);
-                return;
-            }
-            const max = Math.max(...keys.map(k => dataObj[k]), 0.01);
-            const barAreaH = cssHeight - 28;
-            const barW = Math.max(18, Math.min(48, (cssWidth - 16) / keys.length - 8));
-            const gap = (cssWidth - 16 - barW * keys.length) / Math.max(1, keys.length - 1 || 1);
-            let x = 8;
-            keys.forEach((k) => {
-                const h = dataObj[k];
-                const barH = Math.max(2, (h / max) * barAreaH);
-                ctx.fillStyle = colorForKey(`p:${k}`);
-                ctx.fillRect(x, barAreaH - barH + 8, barW, barH);
-                ctx.fillStyle = '#666';
-                ctx.font = '10px sans-serif';
-                ctx.textAlign = 'center';
-                const label = k.length > 10 ? k.slice(0, 9) + '…' : k;
-                ctx.fillText(label, x + barW / 2, cssHeight - 6);
-                ctx.fillStyle = '#333';
-                ctx.fillText(hoursToHHMM(h) || '0:00', x + barW / 2, barAreaH - barH + 2);
-                x += barW + gap;
-            });
-        }
-
-        let _lastWeekChartData = null;
-        let _lastMonthChartData = null;
 
         let _monthSummaryCache = null;
 
@@ -5125,10 +5076,7 @@
                 <div class="week-summary-col"><h4>By client</h4><ul>${listItems(byClient)}</ul></div>
                 <div class="week-summary-col"><h4>By project</h4><ul>${listItems(byProject)}</ul></div>
                 <div class="week-summary-col" style="grid-column:1/-1"><h4>Month total</h4><ul><li>All: <strong>${hoursToHHMM(totalH) || '00:00'}</strong></li></ul></div>
-                <div class="week-summary-col hours-chart-col" style="grid-column:1/-1"><h4>Hours by project (this month)</h4><canvas id="month-hours-chart" class="hours-chart" height="120"></canvas></div>
             `;
-            _lastMonthChartData = byProject;
-            drawHoursBarChart('month-hours-chart', byProject);
         }
 
         function getMondayWeekStartFromDate(inputDate) {
@@ -5752,13 +5700,6 @@
             });
             bindEl('save-week-template-btn', 'click', handleSaveWeekTemplateClick);
             bindEl('apply-week-template-btn', 'click', handleApplyWeekTemplateClick);
-            bindEl('week-summary-details', 'toggle', (e) => {
-                if (e.target.open && _lastWeekChartData) drawHoursBarChart('week-hours-chart', _lastWeekChartData);
-            });
-            bindEl('month-summary-details', 'toggle', (e) => {
-                if (e.target.open && _lastMonthChartData) drawHoursBarChart('month-hours-chart', _lastMonthChartData);
-            });
-            
             // Time preset buttons
             document.querySelectorAll('.btn-preset').forEach(btn => {
                 btn.addEventListener('click', function() {
